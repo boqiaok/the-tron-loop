@@ -2,5 +2,6 @@ packages:
   - 'web'
   - 'server'
 allowBuilds:
+  '@scarf/scarf': false
   sharp: true
   unrs-resolver: true
