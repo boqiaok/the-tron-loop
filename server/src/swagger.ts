@@ -7,6 +7,10 @@ export function setupSwagger(app: INestApplication): void {
     .setDescription('API for the Hamilton weekly activity guide')
     .setVersion('1.0')
     .addTag('health')
+    .addTag('activities')
+    .addTag('admin activities')
+    .addTag('venues')
+    .addTag('tags')
     .build();
 
   const documentFactory = () => SwaggerModule.createDocument(app, config);
