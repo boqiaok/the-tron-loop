@@ -1,9 +1,11 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
   IsEnum,
+  IsIn,
   IsInt,
   IsISO8601,
+  IsNotEmpty,
   IsOptional,
   IsString,
   Matches,
@@ -29,26 +31,54 @@ class PaginationQueryDto {
   limit = 20;
 }
 
-export class ActivityPaginationQueryDto extends PaginationQueryDto {
-  @ApiPropertyOptional({
+export class ActivityRangeQueryDto {
+  @ApiProperty({
     type: String,
     format: 'date-time',
     example: '2026-08-10T00:00:00+12:00',
     description: 'Inclusive activity start-time boundary',
   })
-  @IsOptional()
   @IsISO8601({ strict: true })
-  from?: string;
+  from!: string;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     type: String,
     format: 'date-time',
     example: '2026-08-17T00:00:00+12:00',
     description: 'Exclusive activity start-time boundary',
   })
-  @IsOptional()
   @IsISO8601({ strict: true })
-  to?: string;
+  to!: string;
+}
+
+export class ActivityPaginationQueryDto extends ActivityRangeQueryDto {
+  @ApiPropertyOptional({ default: 1, minimum: 1 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page = 1;
+
+  @ApiPropertyOptional({ default: 20, minimum: 1, maximum: 100 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit = 20;
+
+  @ApiPropertyOptional({ example: 'music', maxLength: 100 })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  q?: string;
+
+  @ApiPropertyOptional({ enum: ['asc', 'desc'], default: 'asc' })
+  @IsOptional()
+  @IsIn(['asc', 'desc'])
+  sort = 'asc' as 'asc' | 'desc';
 
   @ApiPropertyOptional({ enum: ActivityCostType })
   @IsOptional()

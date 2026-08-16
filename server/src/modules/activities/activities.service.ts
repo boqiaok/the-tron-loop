@@ -17,12 +17,14 @@ import { createSlug } from './activity-slug';
 import { toActivityResponse } from './activity.mapper';
 import { isPostgresUniqueViolation } from './database-error';
 import { ActivityDateInputDto } from './dto/activity-date-input.dto';
+import { ActivityFilterOptionsResponseDto } from './dto/activity-filter-options-response.dto';
 import {
   ActivityResponseDto,
   PaginatedActivitiesResponseDto,
 } from './dto/activity-response.dto';
 import {
   ActivityPaginationQueryDto,
+  ActivityRangeQueryDto,
   AdminActivityQueryDto,
 } from './dto/activity-query.dto';
 import { CreateActivityDto } from './dto/create-activity.dto';
@@ -40,6 +42,7 @@ const ACTIVITY_RELATIONS = {
   dates: true,
   activityTags: { tag: true },
 } as const;
+const MAX_PUBLIC_RANGE_MS = 169 * 60 * 60 * 1000;
 
 @Injectable()
 export class ActivitiesService {
@@ -104,12 +107,7 @@ export class ActivitiesService {
   async findPublicPage(
     query: ActivityPaginationQueryDto,
   ): Promise<PaginatedActivitiesResponseDto> {
-    const from = query.from ? new Date(query.from) : undefined;
-    const to = query.to ? new Date(query.to) : undefined;
-
-    if (from && to && from >= to) {
-      throw new BadRequestException('"from" must be earlier than "to"');
-    }
+    const { from, to } = this.parsePublicRange(query);
 
     const baseQuery = this.createPublicQuery(query, from, to);
     const countResult = await baseQuery
@@ -121,7 +119,10 @@ export class ActivitiesService {
       .select('activity.id', 'activityId')
       .addSelect('MIN(matchingDate.startsAt)', 'firstMatchingStart')
       .groupBy('activity.id')
-      .orderBy('MIN(matchingDate.startsAt)', 'ASC')
+      .orderBy(
+        'MIN(matchingDate.startsAt)',
+        query.sort === 'desc' ? 'DESC' : 'ASC',
+      )
       .addOrderBy('activity.id', 'ASC')
       .offset((query.page - 1) * query.limit)
       .limit(query.limit)
@@ -155,6 +156,52 @@ export class ActivitiesService {
       limit: query.limit,
       total,
       totalPages: Math.ceil(total / query.limit),
+    };
+  }
+
+  async findPublicFilterOptions(
+    query: ActivityRangeQueryDto,
+  ): Promise<ActivityFilterOptionsResponseDto> {
+    const { from, to } = this.parsePublicRange(query);
+    const publicStatuses = [ActivityStatus.Published, ActivityStatus.Cancelled];
+    const [tags, suburbs] = await Promise.all([
+      this.activitiesRepository
+        .createQueryBuilder('activity')
+        .innerJoin(
+          'activity.dates',
+          'matchingDate',
+          'matchingDate.startsAt >= :from AND matchingDate.startsAt < :to',
+          { from, to },
+        )
+        .innerJoin('activity.activityTags', 'activityTag')
+        .innerJoin('activityTag.tag', 'tag')
+        .where('activity.status IN (:...publicStatuses)', { publicStatuses })
+        .select('tag.name', 'name')
+        .addSelect('tag.slug', 'slug')
+        .distinct(true)
+        .orderBy('tag.name', 'ASC')
+        .getRawMany<{ name: string; slug: string }>(),
+      this.activitiesRepository
+        .createQueryBuilder('activity')
+        .innerJoin(
+          'activity.dates',
+          'matchingDate',
+          'matchingDate.startsAt >= :from AND matchingDate.startsAt < :to',
+          { from, to },
+        )
+        .innerJoin('activity.venue', 'venue')
+        .where('activity.status IN (:...publicStatuses)', { publicStatuses })
+        .andWhere('venue.suburb IS NOT NULL')
+        .select('venue.suburb', 'suburb')
+        .distinct(true)
+        .orderBy('venue.suburb', 'ASC')
+        .getRawMany<{ suburb: string }>(),
+    ]);
+
+    return {
+      costTypes: Object.values(ActivityCostType),
+      tags,
+      suburbs: suburbs.map(({ suburb }) => suburb),
     };
   }
 
@@ -303,8 +350,8 @@ export class ActivitiesService {
 
   private createPublicQuery(
     query: ActivityPaginationQueryDto,
-    from: Date | undefined,
-    to: Date | undefined,
+    from: Date,
+    to: Date,
   ): SelectQueryBuilder<Activity> {
     const queryBuilder = this.activitiesRepository
       .createQueryBuilder('activity')
@@ -313,12 +360,17 @@ export class ActivitiesService {
         publicStatuses: [ActivityStatus.Published, ActivityStatus.Cancelled],
       });
 
-    if (from) {
-      queryBuilder.andWhere('matchingDate.startsAt >= :from', { from });
-    }
+    queryBuilder
+      .andWhere('matchingDate.startsAt >= :from', { from })
+      .andWhere('matchingDate.startsAt < :to', { to });
 
-    if (to) {
-      queryBuilder.andWhere('matchingDate.startsAt < :to', { to });
+    if (query.q) {
+      queryBuilder.andWhere(
+        `(activity.title ILIKE :search
+          OR activity.summary ILIKE :search
+          OR activity.description ILIKE :search)`,
+        { search: `%${query.q}%` },
+      );
     }
 
     if (query.costType) {
@@ -348,6 +400,26 @@ export class ActivitiesService {
     }
 
     return queryBuilder;
+  }
+
+  private parsePublicRange(query: ActivityRangeQueryDto): {
+    from: Date;
+    to: Date;
+  } {
+    const from = new Date(query.from);
+    const to = new Date(query.to);
+
+    if (from >= to) {
+      throw new BadRequestException('"from" must be earlier than "to"');
+    }
+
+    if (to.getTime() - from.getTime() > MAX_PUBLIC_RANGE_MS) {
+      throw new BadRequestException(
+        'Public activity queries cannot exceed one calendar week',
+      );
+    }
+
+    return { from, to };
   }
 
   private buildSlug(value: string): string {

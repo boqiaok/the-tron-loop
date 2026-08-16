@@ -77,6 +77,10 @@ describe('Application (e2e)', () => {
   describe('activity lifecycle', () => {
     const uniquePart = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const activityTitle = `E2E Activity ${uniquePart}`;
+    const publicRange = {
+      from: '2026-08-14T00:00:00+12:00',
+      to: '2026-08-17T00:00:00+12:00',
+    };
     let activityId: string;
     let laterActivityId: string;
     let venueId: string;
@@ -201,7 +205,7 @@ describe('Application (e2e)', () => {
     it('does not expose a draft through the public API', async () => {
       const response = await request(app.getHttpServer())
         .get('/api/v1/activities')
-        .query({ tag: tagSlug })
+        .query({ ...publicRange, tag: tagSlug })
         .expect(200);
       const page = response.body as { items: Array<{ id: string }> };
 
@@ -324,10 +328,49 @@ describe('Application (e2e)', () => {
       );
     });
 
+    it('searches public activities and supports descending date order', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/activities')
+        .query({ ...publicRange, q: 'e2e activity', sort: 'desc' })
+        .expect(200);
+      const page = response.body as {
+        items: Array<{ id: string; dates: Array<{ startsAt: string }> }>;
+      };
+
+      expect(page.items.map(({ id }) => id)).toEqual([
+        laterActivityId,
+        activityId,
+      ]);
+      expect(page.items[0].dates[0].startsAt).toBe('2026-08-14T22:00:00.000Z');
+    });
+
+    it('returns filter options used by public activities', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/activities/filters')
+        .query(publicRange)
+        .expect(200);
+      const options = response.body as {
+        costTypes: string[];
+        tags: Array<{ name: string; slug: string }>;
+        suburbs: string[];
+      };
+
+      expect(options.costTypes).toEqual(['free', 'paid', 'unknown']);
+      expect(options.tags).toEqual(
+        expect.arrayContaining([expect.objectContaining({ slug: tagSlug })]),
+      );
+      expect(options.suburbs).toContain('Hamilton East');
+    });
+
     it('supports cost, tag and case-insensitive suburb filters', async () => {
       const freeResponse = await request(app.getHttpServer())
         .get('/api/v1/activities')
-        .query({ costType: 'free', tag: tagSlug, suburb: 'hamilton east' })
+        .query({
+          ...publicRange,
+          costType: 'free',
+          tag: tagSlug,
+          suburb: 'hamilton east',
+        })
         .expect(200);
       const freeItems = (freeResponse.body as { items: Array<{ id: string }> })
         .items;
@@ -342,7 +385,7 @@ describe('Application (e2e)', () => {
 
       const paidResponse = await request(app.getHttpServer())
         .get('/api/v1/activities')
-        .query({ costType: 'paid' })
+        .query({ ...publicRange, costType: 'paid' })
         .expect(200);
       expect(
         (paidResponse.body as { items: Array<{ id: string }> }).items,
@@ -363,6 +406,18 @@ describe('Application (e2e)', () => {
         .expect(400);
     });
 
+    it('requires a public date range and limits it to one week', async () => {
+      await request(app.getHttpServer()).get('/api/v1/activities').expect(400);
+
+      await request(app.getHttpServer())
+        .get('/api/v1/activities')
+        .query({
+          from: '2026-08-01T00:00:00+12:00',
+          to: '2026-08-10T00:00:00+12:00',
+        })
+        .expect(400);
+    });
+
     it('keeps a cancelled activity visible but prevents its deletion', async () => {
       const cancelResponse = await request(app.getHttpServer())
         .post(`/api/v1/admin/activities/${activityId}/cancel`)
@@ -376,7 +431,7 @@ describe('Application (e2e)', () => {
 
       const publicResponse = await request(app.getHttpServer())
         .get('/api/v1/activities')
-        .query({ tag: tagSlug })
+        .query({ ...publicRange, tag: tagSlug })
         .expect(200);
       expect(
         (
