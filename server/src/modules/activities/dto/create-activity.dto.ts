@@ -40,7 +40,7 @@ export class CreateActivityDto {
   @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
   slug?: string;
 
-  @ApiPropertyOptional({ maxLength: 500, nullable: true })
+  @ApiPropertyOptional({ type: String, maxLength: 500, nullable: true })
   @IsOptional()
   @IsString()
   @MaxLength(500)
@@ -54,7 +54,7 @@ export class CreateActivityDto {
   @MinLength(1)
   description!: string;
 
-  @ApiPropertyOptional({ nullable: true })
+  @ApiPropertyOptional({ type: String, format: 'uri', nullable: true })
   @IsOptional()
   @IsUrl({ protocols: ['http', 'https'], require_protocol: true })
   imageUrl?: string | null;
@@ -64,7 +64,12 @@ export class CreateActivityDto {
   @IsEnum(ActivityCostType)
   costType?: ActivityCostType;
 
-  @ApiPropertyOptional({ minimum: 0, nullable: true, example: 10 })
+  @ApiPropertyOptional({
+    type: Number,
+    minimum: 0,
+    nullable: true,
+    example: 10,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
@@ -77,18 +82,22 @@ export class CreateActivityDto {
   @Matches(/^[A-Z]{3}$/)
   currency?: string;
 
-  @ApiPropertyOptional({ maxLength: 255, nullable: true })
+  @ApiPropertyOptional({
+    type: String,
+    maxLength: 255,
+    nullable: true,
+  })
   @IsOptional()
   @IsString()
   @MaxLength(255)
   costDetails?: string | null;
 
-  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
   @IsOptional()
   @IsUUID()
   venueId?: string | null;
 
-  @ApiPropertyOptional({ nullable: true })
+  @ApiPropertyOptional({ type: String, format: 'uri', nullable: true })
   @IsOptional()
   @IsUrl({ protocols: ['http', 'https'], require_protocol: true })
   sourceUrl?: string | null;

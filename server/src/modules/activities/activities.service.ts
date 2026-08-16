@@ -11,6 +11,7 @@ import {
   FindOptionsWhere,
   In,
   Repository,
+  SelectQueryBuilder,
 } from 'typeorm';
 import { createSlug } from './activity-slug';
 import { toActivityResponse } from './activity.mapper';
@@ -103,9 +104,58 @@ export class ActivitiesService {
   async findPublicPage(
     query: ActivityPaginationQueryDto,
   ): Promise<PaginatedActivitiesResponseDto> {
-    return this.findPage(query.page, query.limit, {
-      status: In([ActivityStatus.Published, ActivityStatus.Cancelled]),
+    const from = query.from ? new Date(query.from) : undefined;
+    const to = query.to ? new Date(query.to) : undefined;
+
+    if (from && to && from >= to) {
+      throw new BadRequestException('"from" must be earlier than "to"');
+    }
+
+    const baseQuery = this.createPublicQuery(query, from, to);
+    const countResult = await baseQuery
+      .clone()
+      .select('COUNT(DISTINCT activity.id)', 'total')
+      .getRawOne<{ total: string }>();
+    const total = Number(countResult?.total ?? 0);
+    const idRows = await baseQuery
+      .select('activity.id', 'activityId')
+      .addSelect('MIN(matchingDate.startsAt)', 'firstMatchingStart')
+      .groupBy('activity.id')
+      .orderBy('MIN(matchingDate.startsAt)', 'ASC')
+      .addOrderBy('activity.id', 'ASC')
+      .offset((query.page - 1) * query.limit)
+      .limit(query.limit)
+      .getRawMany<{ activityId: string }>();
+    const activityIds = idRows.map((row) => row.activityId);
+
+    if (activityIds.length === 0) {
+      return {
+        items: [],
+        page: query.page,
+        limit: query.limit,
+        total,
+        totalPages: Math.ceil(total / query.limit),
+      };
+    }
+
+    const activities = await this.activitiesRepository.find({
+      where: { id: In(activityIds) },
+      relations: ACTIVITY_RELATIONS,
     });
+    const activityById = new Map(
+      activities.map((activity) => [activity.id, activity]),
+    );
+
+    return {
+      items: activityIds
+        .map((id) => activityById.get(id))
+        .filter((activity): activity is Activity => activity !== undefined)
+        .map((activity) => toActivityResponse(activity, { from, to })),
+      page: query.page,
+      limit: query.limit,
+      total,
+      totalPages: Math.ceil(total / query.limit),
+    };
   }
 
   async findAdminById(id: string): Promise<ActivityResponseDto> {
@@ -116,22 +166,6 @@ export class ActivitiesService {
 
     if (!activity) {
       throw new NotFoundException(`Activity "${id}" was not found`);
-    }
-
-    return toActivityResponse(activity);
-  }
-
-  async findPublicBySlug(slug: string): Promise<ActivityResponseDto> {
-    const activity = await this.activitiesRepository.findOne({
-      where: {
-        slug,
-        status: In([ActivityStatus.Published, ActivityStatus.Cancelled]),
-      },
-      relations: ACTIVITY_RELATIONS,
-    });
-
-    if (!activity) {
-      throw new NotFoundException(`Activity "${slug}" was not found`);
     }
 
     return toActivityResponse(activity);
@@ -259,12 +293,61 @@ export class ActivitiesService {
     });
 
     return {
-      items: activities.map(toActivityResponse),
+      items: activities.map((activity) => toActivityResponse(activity)),
       page,
       limit,
       total,
       totalPages: Math.ceil(total / limit),
     };
+  }
+
+  private createPublicQuery(
+    query: ActivityPaginationQueryDto,
+    from: Date | undefined,
+    to: Date | undefined,
+  ): SelectQueryBuilder<Activity> {
+    const queryBuilder = this.activitiesRepository
+      .createQueryBuilder('activity')
+      .innerJoin('activity.dates', 'matchingDate')
+      .where('activity.status IN (:...publicStatuses)', {
+        publicStatuses: [ActivityStatus.Published, ActivityStatus.Cancelled],
+      });
+
+    if (from) {
+      queryBuilder.andWhere('matchingDate.startsAt >= :from', { from });
+    }
+
+    if (to) {
+      queryBuilder.andWhere('matchingDate.startsAt < :to', { to });
+    }
+
+    if (query.costType) {
+      queryBuilder.andWhere('activity.costType = :costType', {
+        costType: query.costType,
+      });
+    }
+
+    if (query.tag) {
+      queryBuilder
+        .innerJoin('activity.activityTags', 'filterActivityTag')
+        .innerJoin(
+          'filterActivityTag.tag',
+          'filterTag',
+          'filterTag.slug = :tag',
+          { tag: query.tag },
+        );
+    }
+
+    if (query.suburb) {
+      queryBuilder.innerJoin(
+        'activity.venue',
+        'filterVenue',
+        'LOWER(filterVenue.suburb) = LOWER(:suburb)',
+        { suburb: query.suburb },
+      );
+    }
+
+    return queryBuilder;
   }
 
   private buildSlug(value: string): string {

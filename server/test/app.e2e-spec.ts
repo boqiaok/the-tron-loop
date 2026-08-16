@@ -54,11 +54,20 @@ describe('Application (e2e)', () => {
     const document = response.body as {
       info?: { title?: string };
       paths?: Record<string, unknown>;
+      components?: {
+        schemas?: Record<
+          string,
+          { properties?: Record<string, { type?: string; nullable?: boolean }> }
+        >;
+      };
     };
 
     expect(document.info?.title).toBe('The Tron Loop API');
     expect(document.paths).toHaveProperty('/api/v1/admin/activities');
-    expect(document.paths).toHaveProperty('/api/v1/activities/{slug}');
+    expect(document.paths).not.toHaveProperty('/api/v1/activities/{slug}');
+    expect(
+      document.components?.schemas?.CreateActivityDto.properties?.summary,
+    ).toEqual(expect.objectContaining({ type: 'string', nullable: true }));
   });
 
   it('GET / does not expose the removed starter endpoint', () => {
@@ -69,9 +78,10 @@ describe('Application (e2e)', () => {
     const uniquePart = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const activityTitle = `E2E Activity ${uniquePart}`;
     let activityId: string;
-    let activitySlug: string;
+    let laterActivityId: string;
     let venueId: string;
     let tagId: string;
+    let tagSlug: string;
 
     it('creates supporting venue and tag records', async () => {
       const venueResponse = await request(app.getHttpServer())
@@ -79,6 +89,7 @@ describe('Application (e2e)', () => {
         .send({
           name: `E2E Venue ${uniquePart}`,
           address: '1 Victoria Street',
+          suburb: 'Hamilton East',
         })
         .expect(201);
       const venue = venueResponse.body as { id: string; city: string };
@@ -92,6 +103,7 @@ describe('Application (e2e)', () => {
         .expect(201);
       const tag = tagResponse.body as { id: string; slug: string };
       tagId = tag.id;
+      tagSlug = tag.slug;
       tagIds.push(tagId);
       expect(tag.slug).toContain('e2e-family');
     });
@@ -135,6 +147,18 @@ describe('Application (e2e)', () => {
         .expect(400);
     });
 
+    it('rejects the removed koha cost type', () => {
+      return request(app.getHttpServer())
+        .post('/api/v1/admin/activities')
+        .send({
+          title: `Koha ${uniquePart}`,
+          description: 'Removed cost type',
+          costType: 'koha',
+          dates: [{ startsAt: '2026-08-14T18:00:00+12:00' }],
+        })
+        .expect(400);
+    });
+
     it('creates a draft activity with dates, venue and tags', async () => {
       const response = await request(app.getHttpServer())
         .post('/api/v1/admin/activities')
@@ -150,6 +174,10 @@ describe('Application (e2e)', () => {
               startsAt: '2026-08-14T18:00:00+12:00',
               endsAt: '2026-08-14T21:00:00+12:00',
             },
+            {
+              startsAt: '2026-08-16T10:00:00+12:00',
+              endsAt: '2026-08-16T12:00:00+12:00',
+            },
           ],
         })
         .expect(201);
@@ -163,7 +191,6 @@ describe('Application (e2e)', () => {
       };
 
       activityId = activity.id;
-      activitySlug = activity.slug;
       activityIds.push(activityId);
       expect(activity.status).toBe('draft');
       expect(activity.venue.id).toBe(venueId);
@@ -171,10 +198,16 @@ describe('Application (e2e)', () => {
       expect(activity.dates[0].timezone).toBe('Pacific/Auckland');
     });
 
-    it('does not expose a draft through the public API', () => {
-      return request(app.getHttpServer())
-        .get(`/api/v1/activities/${activitySlug}`)
-        .expect(404);
+    it('does not expose a draft through the public API', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/activities')
+        .query({ tag: tagSlug })
+        .expect(200);
+      const page = response.body as { items: Array<{ id: string }> };
+
+      expect(page.items).not.toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: activityId })]),
+      );
     });
 
     it('rejects a duplicate activity slug', () => {
@@ -200,11 +233,16 @@ describe('Application (e2e)', () => {
       };
 
       expect(activity.summary).toBe('Updated summary');
-      expect(activity.slug).toBe(activitySlug);
+      expect(activity.slug).toContain('e2e-activity');
       expect(activity.tags).toEqual([]);
     });
 
-    it('publishes the activity and exposes it publicly', async () => {
+    it('publishes activities used by the public query tests', async () => {
+      await request(app.getHttpServer())
+        .patch(`/api/v1/admin/activities/${activityId}`)
+        .send({ tagIds: [tagId] })
+        .expect(200);
+
       const publishResponse = await request(app.getHttpServer())
         .post(`/api/v1/admin/activities/${activityId}/publish`)
         .expect(200);
@@ -215,24 +253,114 @@ describe('Application (e2e)', () => {
       expect(published.status).toBe('published');
       expect(published.publishedAt).not.toBeNull();
 
-      const publicResponse = await request(app.getHttpServer())
-        .get(`/api/v1/activities/${activitySlug}`)
+      const laterResponse = await request(app.getHttpServer())
+        .post('/api/v1/admin/activities')
+        .send({
+          title: `Later E2E Activity ${uniquePart}`,
+          description: 'Used to verify public ordering',
+          costType: 'paid',
+          dates: [{ startsAt: '2026-08-15T10:00:00+12:00' }],
+        })
+        .expect(201);
+      laterActivityId = (laterResponse.body as { id: string }).id;
+      activityIds.push(laterActivityId);
+      await request(app.getHttpServer())
+        .post(`/api/v1/admin/activities/${laterActivityId}/publish`)
         .expect(200);
-      expect((publicResponse.body as { status: string }).status).toBe(
-        'published',
-      );
+    });
 
+    it('filters, de-duplicates and orders public activities by matching dates', async () => {
       const listResponse = await request(app.getHttpServer())
-        .get('/api/v1/activities?page=1&limit=100')
+        .get('/api/v1/activities')
+        .query({
+          from: '2026-08-14T00:00:00+12:00',
+          to: '2026-08-17T00:00:00+12:00',
+          page: 1,
+          limit: 100,
+        })
         .expect(200);
       const page = listResponse.body as {
-        items: Array<{ id: string }>;
+        items: Array<{ id: string; dates: unknown[] }>;
         totalPages: number;
       };
-      expect(page.items).toEqual(
+      const testActivityIds = page.items
+        .filter((activity) =>
+          [activityId, laterActivityId].includes(activity.id),
+        )
+        .map((activity) => activity.id);
+
+      expect(testActivityIds).toEqual([activityId, laterActivityId]);
+      expect(testActivityIds.filter((id) => id === activityId)).toHaveLength(1);
+      expect(
+        page.items.find((activity) => activity.id === activityId)?.dates,
+      ).toHaveLength(2);
+      expect(page.totalPages).toBeGreaterThanOrEqual(1);
+
+      const firstOccurrenceOnly = await request(app.getHttpServer())
+        .get('/api/v1/activities')
+        .query({
+          from: '2026-08-14T18:00:00+12:00',
+          to: '2026-08-14T19:00:00+12:00',
+        })
+        .expect(200);
+      const narrowPage = firstOccurrenceOnly.body as {
+        items: Array<{ id: string; dates: unknown[] }>;
+      };
+      expect(
+        narrowPage.items.find((activity) => activity.id === activityId)?.dates,
+      ).toHaveLength(1);
+
+      const exclusiveBoundary = await request(app.getHttpServer())
+        .get('/api/v1/activities')
+        .query({
+          from: '2026-08-14T00:00:00+12:00',
+          to: '2026-08-14T18:00:00+12:00',
+        })
+        .expect(200);
+      expect(
+        (exclusiveBoundary.body as { items: Array<{ id: string }> }).items,
+      ).not.toEqual(
         expect.arrayContaining([expect.objectContaining({ id: activityId })]),
       );
-      expect(page.totalPages).toBeGreaterThanOrEqual(1);
+    });
+
+    it('supports cost, tag and case-insensitive suburb filters', async () => {
+      const freeResponse = await request(app.getHttpServer())
+        .get('/api/v1/activities')
+        .query({ costType: 'free', tag: tagSlug, suburb: 'hamilton east' })
+        .expect(200);
+      const freeItems = (freeResponse.body as { items: Array<{ id: string }> })
+        .items;
+      expect(freeItems).toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: activityId })]),
+      );
+      expect(freeItems).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: laterActivityId }),
+        ]),
+      );
+
+      const paidResponse = await request(app.getHttpServer())
+        .get('/api/v1/activities')
+        .query({ costType: 'paid' })
+        .expect(200);
+      expect(
+        (paidResponse.body as { items: Array<{ id: string }> }).items,
+      ).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: laterActivityId }),
+        ]),
+      );
+    });
+
+    it('rejects an invalid public date range', () => {
+      return request(app.getHttpServer())
+        .get('/api/v1/activities')
+        .query({
+          from: '2026-08-17T00:00:00+12:00',
+          to: '2026-08-10T00:00:00+12:00',
+        })
+        .expect(400);
     });
 
     it('keeps a cancelled activity visible but prevents its deletion', async () => {
@@ -247,10 +375,19 @@ describe('Application (e2e)', () => {
       expect(cancelled.cancelledAt).not.toBeNull();
 
       const publicResponse = await request(app.getHttpServer())
-        .get(`/api/v1/activities/${activitySlug}`)
+        .get('/api/v1/activities')
+        .query({ tag: tagSlug })
         .expect(200);
-      expect((publicResponse.body as { status: string }).status).toBe(
-        'cancelled',
+      expect(
+        (
+          publicResponse.body as {
+            items: Array<{ id: string; status: string }>;
+          }
+        ).items,
+      ).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: activityId, status: 'cancelled' }),
+        ]),
       );
 
       await request(app.getHttpServer())

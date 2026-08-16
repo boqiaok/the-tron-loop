@@ -13,7 +13,9 @@ export class ActivityDateInputDto {
   startsAt!: string;
 
   @ApiPropertyOptional({
+    type: String,
     example: '2026-08-14T21:00:00+12:00',
+    format: 'date-time',
     nullable: true,
   })
   @IsOptional()
@@ -30,7 +32,7 @@ export class ActivityDateInputDto {
   @IsBoolean()
   isAllDay?: boolean;
 
-  @ApiPropertyOptional({ nullable: true })
+  @ApiPropertyOptional({ type: String, nullable: true })
   @IsOptional()
   @IsString()
   recurrenceRule?: string | null;

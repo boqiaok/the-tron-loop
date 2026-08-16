@@ -20,12 +20,12 @@ export class CreateVenueDto {
   @MaxLength(200)
   name!: string;
 
-  @ApiPropertyOptional({ nullable: true })
+  @ApiPropertyOptional({ type: String, nullable: true })
   @IsOptional()
   @IsString()
   address?: string | null;
 
-  @ApiPropertyOptional({ maxLength: 120, nullable: true })
+  @ApiPropertyOptional({ type: String, maxLength: 120, nullable: true })
   @IsOptional()
   @IsString()
   @MaxLength(120)
@@ -37,7 +37,12 @@ export class CreateVenueDto {
   @MaxLength(120)
   city?: string;
 
-  @ApiPropertyOptional({ minimum: -90, maximum: 90, nullable: true })
+  @ApiPropertyOptional({
+    type: Number,
+    minimum: -90,
+    maximum: 90,
+    nullable: true,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
@@ -45,7 +50,12 @@ export class CreateVenueDto {
   @Max(90)
   latitude?: number | null;
 
-  @ApiPropertyOptional({ minimum: -180, maximum: 180, nullable: true })
+  @ApiPropertyOptional({
+    type: Number,
+    minimum: -180,
+    maximum: 180,
+    nullable: true,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsNumber()

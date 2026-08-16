@@ -8,6 +8,11 @@ import { Activity } from './entities/activity.entity';
 import { Tag } from './entities/tag.entity';
 import { Venue } from './entities/venue.entity';
 
+interface ActivityDateRange {
+  from?: Date;
+  to?: Date;
+}
+
 export function toVenueResponse(venue: Venue): VenueResponseDto {
   return {
     id: venue.id,
@@ -28,8 +33,16 @@ export function toTagResponse(tag: Tag): TagResponseDto {
   };
 }
 
-export function toActivityResponse(activity: Activity): ActivityResponseDto {
+export function toActivityResponse(
+  activity: Activity,
+  dateRange?: ActivityDateRange,
+): ActivityResponseDto {
   const dates: ActivityDateResponseDto[] = [...(activity.dates ?? [])]
+    .filter(
+      (date) =>
+        (!dateRange?.from || date.startsAt >= dateRange.from) &&
+        (!dateRange?.to || date.startsAt < dateRange.to),
+    )
     .sort((left, right) => left.startsAt.getTime() - right.startsAt.getTime())
     .map((date) => ({
       id: date.id,

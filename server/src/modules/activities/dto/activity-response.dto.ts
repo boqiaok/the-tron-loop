@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 import { ActivityCostType } from '../enums/activity-cost-type.enum';
 import { ActivityStatus } from '../enums/activity-status.enum';
 
@@ -9,19 +9,19 @@ export class VenueResponseDto {
   @ApiProperty()
   name!: string;
 
-  @ApiPropertyOptional({ nullable: true })
+  @ApiProperty({ type: String, nullable: true })
   address!: string | null;
 
-  @ApiPropertyOptional({ nullable: true })
+  @ApiProperty({ type: String, nullable: true })
   suburb!: string | null;
 
   @ApiProperty()
   city!: string;
 
-  @ApiPropertyOptional({ nullable: true })
+  @ApiProperty({ type: Number, nullable: true })
   latitude!: number | null;
 
-  @ApiPropertyOptional({ nullable: true })
+  @ApiProperty({ type: Number, nullable: true })
   longitude!: number | null;
 }
 
@@ -43,7 +43,7 @@ export class ActivityDateResponseDto {
   @ApiProperty({ format: 'date-time' })
   startsAt!: string;
 
-  @ApiPropertyOptional({ format: 'date-time', nullable: true })
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
   endsAt!: string | null;
 
   @ApiProperty()
@@ -52,7 +52,7 @@ export class ActivityDateResponseDto {
   @ApiProperty()
   isAllDay!: boolean;
 
-  @ApiPropertyOptional({ nullable: true })
+  @ApiProperty({ type: String, nullable: true })
   recurrenceRule!: string | null;
 }
 
@@ -66,40 +66,40 @@ export class ActivityResponseDto {
   @ApiProperty()
   slug!: string;
 
-  @ApiPropertyOptional({ nullable: true })
+  @ApiProperty({ type: String, nullable: true })
   summary!: string | null;
 
   @ApiProperty()
   description!: string;
 
-  @ApiPropertyOptional({ nullable: true })
+  @ApiProperty({ type: String, format: 'uri', nullable: true })
   imageUrl!: string | null;
 
   @ApiProperty({ enum: ActivityCostType })
   costType!: ActivityCostType;
 
-  @ApiPropertyOptional({ nullable: true })
+  @ApiProperty({ type: Number, nullable: true })
   costAmountFrom!: number | null;
 
   @ApiProperty()
   currency!: string;
 
-  @ApiPropertyOptional({ nullable: true })
+  @ApiProperty({ type: String, nullable: true })
   costDetails!: string | null;
 
-  @ApiPropertyOptional({ type: VenueResponseDto, nullable: true })
+  @ApiProperty({ type: () => VenueResponseDto, nullable: true })
   venue!: VenueResponseDto | null;
 
-  @ApiPropertyOptional({ nullable: true })
+  @ApiProperty({ type: String, format: 'uri', nullable: true })
   sourceUrl!: string | null;
 
   @ApiProperty({ enum: ActivityStatus })
   status!: ActivityStatus;
 
-  @ApiPropertyOptional({ format: 'date-time', nullable: true })
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
   publishedAt!: string | null;
 
-  @ApiPropertyOptional({ format: 'date-time', nullable: true })
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
   cancelledAt!: string | null;
 
   @ApiProperty({ type: [ActivityDateResponseDto] })
