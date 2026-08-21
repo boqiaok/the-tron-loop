@@ -1,23 +1,29 @@
-import {
-  ActivityDirectory,
-  type ActivitySearchParams,
-} from "@/components/activities/activity-directory";
+import type { Metadata } from "next";
+
+import { HomePage } from "@/components/home/home-page";
+import { getActivityCount } from "@/lib/api/activities";
+import { getWeekRange } from "@/lib/dates/week-range";
 
 export const dynamic = "force-dynamic";
 
-export default function Home({
-  searchParams,
-}: {
-  searchParams: ActivitySearchParams;
-}) {
+export const metadata: Metadata = {
+  title: "Hamilton’s weekly activity guide",
+};
+
+export default async function Home() {
+  const currentWeek = getWeekRange(0);
+  const nextWeek = getWeekRange(1);
+  const [currentCount, nextCount] = await Promise.all([
+    getActivityCount(currentWeek),
+    getActivityCount(nextWeek),
+  ]);
+
   return (
-    <ActivityDirectory
-      activePage="this-week"
-      heading="What’s on this week?"
-      intro="Browse activities happening around Hamilton. Listings are ordered by their actual start time."
-      pathname="/"
-      searchParams={searchParams}
-      weekOffset={0}
+    <HomePage
+      currentCount={currentCount}
+      currentWeek={currentWeek}
+      nextCount={nextCount}
+      nextWeek={nextWeek}
     />
   );
 }

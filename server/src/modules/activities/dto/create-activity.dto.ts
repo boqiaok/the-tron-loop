@@ -54,9 +54,18 @@ export class CreateActivityDto {
   @MinLength(1)
   description!: string;
 
-  @ApiPropertyOptional({ type: String, format: 'uri', nullable: true })
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: '/images/activities/event-triptych.png',
+    description:
+      'An absolute HTTP(S) URL or a local path under /images/',
+  })
   @IsOptional()
-  @IsUrl({ protocols: ['http', 'https'], require_protocol: true })
+  @Matches(/^(?:https?:\/\/\S+|\/images\/[^\s\\]+)$/, {
+    message:
+      'imageUrl must be an HTTP(S) URL or a local path under /images/',
+  })
   imageUrl?: string | null;
 
   @ApiPropertyOptional({ enum: ActivityCostType, default: 'unknown' })

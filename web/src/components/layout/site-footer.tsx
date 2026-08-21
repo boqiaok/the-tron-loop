@@ -11,14 +11,16 @@ export function SiteFooter() {
           aria-label="Footer navigation"
           className="flex flex-wrap gap-x-7 gap-y-3 text-xs"
         >
-          <Link href="/" className="hover:underline">
+          <Link href="/this-week" className="hover:underline">
             This Week
           </Link>
           <Link href="/next-week" className="hover:underline">
             Next Week
           </Link>
           <span className="opacity-70">Regular Activities</span>
-          <span className="opacity-70">About</span>
+          <Link href="/about" className="hover:underline">
+            About
+          </Link>
         </nav>
         <p className="text-xs opacity-80">© 2026 The Tron Loop</p>
       </div>

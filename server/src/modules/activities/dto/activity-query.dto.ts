@@ -80,6 +80,15 @@ export class ActivityPaginationQueryDto extends ActivityRangeQueryDto {
   @IsIn(['asc', 'desc'])
   sort = 'asc' as 'asc' | 'desc';
 
+  @ApiPropertyOptional({
+    enum: ['cancelled'],
+    description:
+      'Omit to list published activities, or use cancelled to list cancelled activities',
+  })
+  @IsOptional()
+  @IsIn(['cancelled'])
+  status?: 'cancelled';
+
   @ApiPropertyOptional({ enum: ActivityCostType })
   @IsOptional()
   @IsEnum(ActivityCostType)

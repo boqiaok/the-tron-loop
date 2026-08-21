@@ -27,14 +27,19 @@ export function SiteHeader() {
           aria-label="Main navigation"
           className="hidden items-stretch gap-9 self-stretch md:flex"
         >
-          <HeaderLink href="/" active={pathname === "/"}>
+          <HeaderLink
+            href="/this-week"
+            active={pathname === "/this-week"}
+          >
             This Week
           </HeaderLink>
           <HeaderLink href="/next-week" active={pathname === "/next-week"}>
             Next Week
           </HeaderLink>
           <FutureNavItem>Regular Activities</FutureNavItem>
-          <FutureNavItem>About</FutureNavItem>
+          <HeaderLink href="/about" active={pathname === "/about"}>
+            About
+          </HeaderLink>
         </nav>
 
         <button
@@ -54,8 +59,8 @@ export function SiteHeader() {
           className="absolute inset-x-0 top-full grid border-b bg-background px-5 py-3 shadow-md md:hidden"
         >
           <MobileLink
-            href="/"
-            active={pathname === "/"}
+            href="/this-week"
+            active={pathname === "/this-week"}
             onClick={() => setMenuOpen(false)}
           >
             This week
@@ -66,6 +71,13 @@ export function SiteHeader() {
             onClick={() => setMenuOpen(false)}
           >
             Next week
+          </MobileLink>
+          <MobileLink
+            href="/about"
+            active={pathname === "/about"}
+            onClick={() => setMenuOpen(false)}
+          >
+            About
           </MobileLink>
         </nav>
       )}

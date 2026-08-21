@@ -163,7 +163,7 @@ export class ActivitiesService {
     query: ActivityRangeQueryDto,
   ): Promise<ActivityFilterOptionsResponseDto> {
     const { from, to } = this.parsePublicRange(query);
-    const publicStatuses = [ActivityStatus.Published, ActivityStatus.Cancelled];
+    const publicStatuses = [ActivityStatus.Published];
     const [tags, suburbs] = await Promise.all([
       this.activitiesRepository
         .createQueryBuilder('activity')
@@ -356,8 +356,11 @@ export class ActivitiesService {
     const queryBuilder = this.activitiesRepository
       .createQueryBuilder('activity')
       .innerJoin('activity.dates', 'matchingDate')
-      .where('activity.status IN (:...publicStatuses)', {
-        publicStatuses: [ActivityStatus.Published, ActivityStatus.Cancelled],
+      .where('activity.status = :publicStatus', {
+        publicStatus:
+          query.status === 'cancelled'
+            ? ActivityStatus.Cancelled
+            : ActivityStatus.Published,
       });
 
     queryBuilder
@@ -460,9 +463,9 @@ export class ActivitiesService {
     }
 
     for (const date of dates) {
-      if (date.endsAt && date.endsAt < date.startsAt) {
+      if (date.endsAt && date.endsAt <= date.startsAt) {
         throw new BadRequestException(
-          'Activity date end time cannot be before its start time',
+          'Activity date end time must be later than its start time',
         );
       }
     }

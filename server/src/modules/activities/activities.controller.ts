@@ -23,7 +23,9 @@ export class ActivitiesController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'List published and cancelled activities' })
+  @ApiOperation({
+    summary: 'List published activities or the separate cancelled view',
+  })
   @ApiOkResponse({ type: PaginatedActivitiesResponseDto })
   findAll(
     @Query() query: ActivityPaginationQueryDto,

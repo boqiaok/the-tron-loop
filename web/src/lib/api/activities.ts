@@ -3,13 +3,12 @@ import type {
   ActivityFilters,
   PaginatedActivities,
 } from "@/types/activity";
+import { API_BASE_URL } from "@/lib/api/config";
 
 export interface ActivityRange {
   from: string;
   to: string;
 }
-
-const API_BASE_URL = "http://localhost:3001/api/v1";
 
 async function fetchJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -39,6 +38,7 @@ export function getActivities(
   });
 
   if (filters.q) searchParams.set("q", filters.q);
+  if (filters.status) searchParams.set("status", filters.status);
   if (filters.costType) searchParams.set("costType", filters.costType);
   if (filters.tag) searchParams.set("tag", filters.tag);
   if (filters.suburb) searchParams.set("suburb", filters.suburb);
@@ -57,4 +57,21 @@ export function getActivityFilterOptions(
   return fetchJson<ActivityFilterOptions>(
     `/activities/filters?${searchParams}`,
   );
+}
+
+export async function getActivityCount(
+  range: ActivityRange,
+): Promise<number> {
+  const searchParams = new URLSearchParams({
+    from: range.from,
+    to: range.to,
+    page: "1",
+    limit: "1",
+    sort: "asc",
+  });
+  const page = await fetchJson<PaginatedActivities>(
+    `/activities?${searchParams}`,
+  );
+
+  return page.total;
 }

@@ -128,6 +128,22 @@ describe('Application (e2e)', () => {
         .expect(400);
     });
 
+    it('rejects an activity whose end time equals its start time', () => {
+      return request(app.getHttpServer())
+        .post('/api/v1/admin/activities')
+        .send({
+          title: `Zero duration ${uniquePart}`,
+          description: 'Invalid zero-duration activity',
+          dates: [
+            {
+              startsAt: '2026-08-14T18:00:00+12:00',
+              endsAt: '2026-08-14T18:00:00+12:00',
+            },
+          ],
+        })
+        .expect(400);
+    });
+
     it('rejects an activity with a whitespace-only title', () => {
       return request(app.getHttpServer())
         .post('/api/v1/admin/activities')
@@ -170,6 +186,7 @@ describe('Application (e2e)', () => {
           title: activityTitle,
           summary: 'Initial summary',
           description: 'Created by the activity lifecycle E2E test',
+          imageUrl: '/images/activities/event-triptych.png',
           costType: 'free',
           venueId,
           tagIds: [tagId],
@@ -189,6 +206,7 @@ describe('Application (e2e)', () => {
         id: string;
         slug: string;
         status: string;
+        imageUrl: string;
         venue: { id: string };
         tags: Array<{ id: string }>;
         dates: Array<{ timezone: string }>;
@@ -197,6 +215,9 @@ describe('Application (e2e)', () => {
       activityId = activity.id;
       activityIds.push(activityId);
       expect(activity.status).toBe('draft');
+      expect(activity.imageUrl).toBe(
+        '/images/activities/event-triptych.png',
+      );
       expect(activity.venue.id).toBe(venueId);
       expect(activity.tags).toEqual([expect.objectContaining({ id: tagId })]);
       expect(activity.dates[0].timezone).toBe('Pacific/Auckland');
@@ -418,7 +439,7 @@ describe('Application (e2e)', () => {
         .expect(400);
     });
 
-    it('keeps a cancelled activity visible but prevents its deletion', async () => {
+    it('moves a cancelled activity into its separate public view', async () => {
       const cancelResponse = await request(app.getHttpServer())
         .post(`/api/v1/admin/activities/${activityId}/cancel`)
         .expect(200);
@@ -439,11 +460,30 @@ describe('Application (e2e)', () => {
             items: Array<{ id: string; status: string }>;
           }
         ).items,
+      ).not.toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: activityId })]),
+      );
+
+      const cancelledResponse = await request(app.getHttpServer())
+        .get('/api/v1/activities')
+        .query({ ...publicRange, status: 'cancelled', tag: tagSlug })
+        .expect(200);
+      expect(
+        (
+          cancelledResponse.body as {
+            items: Array<{ id: string; status: string }>;
+          }
+        ).items,
       ).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ id: activityId, status: 'cancelled' }),
         ]),
       );
+
+      await request(app.getHttpServer())
+        .get('/api/v1/activities')
+        .query({ ...publicRange, status: 'draft' })
+        .expect(400);
 
       await request(app.getHttpServer())
         .delete(`/api/v1/admin/activities/${activityId}`)

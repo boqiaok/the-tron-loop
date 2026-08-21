@@ -71,7 +71,7 @@ export async function ActivityDirectory({
             className="hidden shrink-0 gap-2 sm:flex"
           >
             <WeekArrow
-              href={activePage === "next-week" ? "/" : undefined}
+              href={activePage === "next-week" ? "/this-week" : undefined}
               label="Previous week"
             >
               <ArrowLeft />
@@ -103,7 +103,7 @@ export async function ActivityDirectory({
 
         <nav aria-label="Change week" className="mt-5 flex gap-2 sm:hidden">
           <WeekArrow
-            href={activePage === "next-week" ? "/" : undefined}
+            href={activePage === "next-week" ? "/this-week" : undefined}
             label="Previous week"
           >
             <ArrowLeft />
@@ -166,6 +166,7 @@ function parseFilters(
   const costType = getSingleValue(searchParams.costType);
   const tag = getSingleValue(searchParams.tag);
   const suburb = getSingleValue(searchParams.suburb);
+  const status = getSingleValue(searchParams.status);
   const q = getSingleValue(searchParams.q)?.trim();
   const sort = getSingleValue(searchParams.sort);
   const rawPage = Number(getSingleValue(searchParams.page) ?? "1");
@@ -173,6 +174,7 @@ function parseFilters(
   return {
     q: q && q.length <= 100 ? q : undefined,
     sort: sort === "desc" ? "desc" : "asc",
+    status: status === "cancelled" ? "cancelled" : undefined,
     costType: COST_TYPES.has(costType as ActivityCostType)
       ? (costType as ActivityCostType)
       : undefined,

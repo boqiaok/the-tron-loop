@@ -1,5 +1,5 @@
 export type ActivityCostType = "free" | "paid" | "unknown";
-export type ActivityStatus = "published" | "cancelled";
+export type ActivityStatus = "draft" | "published" | "cancelled";
 
 export interface Venue {
   id: string;
@@ -65,6 +65,7 @@ export interface ActivityFilterOptions {
 export interface ActivityFilters {
   q?: string;
   sort: "asc" | "desc";
+  status?: "cancelled";
   costType?: ActivityCostType;
   tag?: string;
   suburb?: string;

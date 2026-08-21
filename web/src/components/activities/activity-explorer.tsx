@@ -28,7 +28,7 @@ interface ActivityExplorerProps {
   range: ActivityRange;
 }
 
-type ActiveChip = "all" | "free" | `tag:${string}`;
+type ActiveChip = "all" | "cancelled" | "free" | `tag:${string}`;
 
 export function ActivityExplorer({
   initialActivities,
@@ -47,6 +47,7 @@ export function ActivityExplorer({
     () => ({
       q: debouncedQuery || undefined,
       sort: filters.sort,
+      status: filters.status,
       costType: filters.costType,
       tag: filters.tag,
       suburb: filters.suburb,
@@ -57,6 +58,7 @@ export function ActivityExplorer({
       filters.costType,
       filters.page,
       filters.sort,
+      filters.status,
       filters.suburb,
       filters.tag,
     ],
@@ -98,6 +100,7 @@ export function ActivityExplorer({
       ...current,
       costType: chip === "free" ? "free" : undefined,
       tag: chip.startsWith("tag:") ? chip.slice(4) : undefined,
+      status: chip === "cancelled" ? "cancelled" : undefined,
       page: 1,
     }));
   }
@@ -155,6 +158,12 @@ export function ActivityExplorer({
               {tag.name}
             </FilterChip>
           ))}
+          <FilterChip
+            active={activeChip === "cancelled"}
+            onClick={() => selectChip("cancelled")}
+          >
+            Cancelled
+          </FilterChip>
         </div>
 
         <Button
@@ -274,6 +283,7 @@ function FilterChip({
 }
 
 function getActiveChip(filters: ActivityFilters): ActiveChip {
+  if (filters.status === "cancelled") return "cancelled";
   if (filters.costType === "free") return "free";
   if (filters.tag) return `tag:${filters.tag}`;
   return "all";
@@ -283,6 +293,7 @@ function updateBrowserUrl(pathname: string, filters: ActivityFilters): void {
   const searchParams = new URLSearchParams();
 
   if (filters.q) searchParams.set("q", filters.q);
+  if (filters.status) searchParams.set("status", filters.status);
   if (filters.costType) searchParams.set("costType", filters.costType);
   if (filters.tag) searchParams.set("tag", filters.tag);
   if (filters.suburb) searchParams.set("suburb", filters.suburb);
