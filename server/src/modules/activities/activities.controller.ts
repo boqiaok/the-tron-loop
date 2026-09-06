@@ -2,7 +2,10 @@ import { Controller, Get, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ActivitiesService } from './activities.service';
 import { ActivityFilterOptionsResponseDto } from './dto/activity-filter-options-response.dto';
-import { PaginatedActivitiesResponseDto } from './dto/activity-response.dto';
+import {
+  ActivityResponseDto,
+  PaginatedActivitiesResponseDto,
+} from './dto/activity-response.dto';
 import {
   ActivityPaginationQueryDto,
   ActivityRangeQueryDto,
@@ -20,6 +23,13 @@ export class ActivitiesController {
     @Query() query: ActivityRangeQueryDto,
   ): Promise<ActivityFilterOptionsResponseDto> {
     return this.activitiesService.findPublicFilterOptions(query);
+  }
+
+  @Get('regular')
+  @ApiOperation({ summary: 'List published recurring activities' })
+  @ApiOkResponse({ type: [ActivityResponseDto] })
+  findRegular(): Promise<ActivityResponseDto[]> {
+    return this.activitiesService.findRegularActivities();
   }
 
   @Get()

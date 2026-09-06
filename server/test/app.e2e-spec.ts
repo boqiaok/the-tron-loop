@@ -10,13 +10,24 @@ import { Activity } from './../src/modules/activities/entities/activity.entity';
 import { Tag } from './../src/modules/activities/entities/tag.entity';
 import { Venue } from './../src/modules/activities/entities/venue.entity';
 import { setupSwagger } from './../src/swagger';
+import { AdminUser } from './../src/modules/auth/entities/admin-user.entity';
+import { AdminSession } from './../src/modules/auth/entities/admin-session.entity';
+import { hashPassword } from './../src/modules/auth/password';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { Source } from './../src/modules/ingestion/entities/source.entity';
 
 describe('Application (e2e)', () => {
   let app: INestApplication<App>;
   let dataSource: DataSource;
+  let adminAgent: ReturnType<typeof request.agent>;
+  let adminUserId: string;
   const activityIds: string[] = [];
   const tagIds: string[] = [];
   const venueIds: string[] = [];
+  const sourceIds: string[] = [];
+  let feedServer: Server;
+  let feedUrl: string;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -28,6 +39,194 @@ describe('Application (e2e)', () => {
     setupSwagger(app);
     await app.init();
     dataSource = app.get(DataSource);
+
+    const password = 'e2e-administrator-password';
+    const adminUser = await dataSource.getRepository(AdminUser).save({
+      email: `e2e-${Date.now()}@example.com`,
+      passwordHash: await hashPassword(password),
+      isActive: true,
+    });
+    adminUserId = adminUser.id;
+    adminAgent = request.agent(app.getHttpServer());
+    await adminAgent
+      .post('/api/v1/auth/admin/login')
+      .send({ email: adminUser.email, password })
+      .expect(200)
+      .expect('set-cookie', /tron_admin_session=/);
+
+    feedServer = createServer((_request, response) => {
+      response.setHeader('Content-Type', 'application/json');
+      response.end(
+        JSON.stringify({
+          items: [
+            {
+              externalId: 'feed-activity-1',
+              title: 'Imported E2E Workshop',
+              description: 'Imported from the E2E JSON feed',
+              startsAt: '2026-08-15T14:00:00+12:00',
+              endsAt: '2026-08-15T16:00:00+12:00',
+              venue: {
+                name: 'Imported E2E Venue',
+                address: '2 Victoria Street',
+                suburb: 'Hamilton Central',
+              },
+              tags: ['Imported'],
+              costType: 'free',
+            },
+            {
+              externalId: 'feed-activity-duplicate',
+              title: 'Imported E2E Workshop',
+              description: 'A duplicate from another source record',
+              startsAt: '2026-08-15T14:00:00+12:00',
+              endsAt: '2026-08-15T16:00:00+12:00',
+              venue: {
+                name: 'Imported E2E Venue',
+                address: '2 Victoria Street',
+                suburb: 'Hamilton Central',
+              },
+            },
+          ],
+        }),
+      );
+    });
+    await new Promise<void>((resolve) => {
+      feedServer.listen(0, '127.0.0.1', resolve);
+    });
+    const feedAddress = feedServer.address() as AddressInfo;
+    feedUrl = `http://127.0.0.1:${feedAddress.port}/events.json`;
+  });
+
+  it('rejects unauthenticated administration requests', () => {
+    return request(app.getHttpServer())
+      .get('/api/v1/admin/activities')
+      .expect(401);
+  });
+
+  it('returns the authenticated administrator session', async () => {
+    const response = await adminAgent
+      .get('/api/v1/auth/admin/session')
+      .expect(200);
+    const session = response.body as { id: string; email: string };
+    expect(session.id).toBe(adminUserId);
+    expect(session.email).toContain('@example.com');
+  });
+
+  it('uploads and removes an administrator image', async () => {
+    const png = Buffer.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00,
+    ]);
+    const uploadResponse = await adminAgent
+      .post('/api/v1/admin/media/images')
+      .attach('file', png, {
+        filename: 'activity.png',
+        contentType: 'image/png',
+      })
+      .expect(201);
+    const uploaded = uploadResponse.body as { filename: string; url: string };
+    expect(uploaded.url).toMatch(
+      new RegExp(`/media/images/${uploaded.filename.replace('.', '\\.')}$`),
+    );
+
+    await adminAgent
+      .delete(`/api/v1/admin/media/images/${uploaded.filename}`)
+      .expect(204);
+  });
+
+  it('rejects a file that only claims to be an image', () => {
+    return adminAgent
+      .post('/api/v1/admin/media/images')
+      .attach('file', Buffer.from('not an image'), {
+        filename: 'fake.png',
+        contentType: 'image/png',
+      })
+      .expect(400);
+  });
+
+  it('imports JSON feed activities as drafts and records duplicates', async () => {
+    const sourceResponse = await adminAgent
+      .post('/api/v1/admin/sources')
+      .send({ name: `E2E feed ${Date.now()}`, feedUrl, scheduleHours: 24 })
+      .expect(201);
+    const source = sourceResponse.body as { id: string };
+    sourceIds.push(source.id);
+
+    const firstRunResponse = await adminAgent
+      .post(`/api/v1/admin/sources/${source.id}/import`)
+      .expect(201);
+    expect(firstRunResponse.body).toEqual(
+      expect.objectContaining({
+        status: 'succeeded',
+        createdCount: 1,
+        duplicateCount: 1,
+        failedCount: 0,
+      }),
+    );
+
+    const imported = await dataSource.getRepository(Activity).findOneByOrFail({
+      sourceId: source.id,
+      externalId: 'feed-activity-1',
+    });
+    activityIds.push(imported.id);
+    expect(imported.status).toBe('draft');
+
+    const secondRunResponse = await adminAgent
+      .post(`/api/v1/admin/sources/${source.id}/import`)
+      .expect(201);
+    expect(secondRunResponse.body).toEqual(
+      expect.objectContaining({
+        status: 'succeeded',
+        updatedCount: 1,
+        duplicateCount: 1,
+      }),
+    );
+  });
+
+  it('publishes supported regular activities and rejects unsupported recurrence', async () => {
+    await adminAgent
+      .post('/api/v1/admin/activities')
+      .send({
+        title: `Invalid recurrence ${Date.now()}`,
+        description: 'Invalid monthly recurrence',
+        dates: [
+          {
+            startsAt: '2026-09-07T18:00:00+12:00',
+            recurrenceRule: 'FREQ=MONTHLY',
+          },
+        ],
+      })
+      .expect(400);
+
+    const createResponse = await adminAgent
+      .post('/api/v1/admin/activities')
+      .send({
+        title: `Regular E2E Activity ${Date.now()}`,
+        description: 'A supported recurring activity',
+        dates: [
+          {
+            startsAt: '2026-09-07T18:00:00+12:00',
+            endsAt: '2026-09-07T19:00:00+12:00',
+            recurrenceRule:
+              'FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE;UNTIL=20261231;EXDATE=20261026',
+          },
+        ],
+      })
+      .expect(201);
+    const activity = createResponse.body as { id: string };
+    activityIds.push(activity.id);
+    await adminAgent
+      .post(`/api/v1/admin/activities/${activity.id}/publish`)
+      .expect(200);
+
+    const regularResponse = await request(app.getHttpServer())
+      .get('/api/v1/activities/regular')
+      .expect(200);
+    const regular = regularResponse.body as Array<{
+      id: string;
+      dates: Array<{ recurrenceRule: string | null }>;
+    }>;
+    const recurringActivity = regular.find(({ id }) => id === activity.id);
+    expect(recurringActivity).toBeDefined();
+    expect(recurringActivity?.dates[0]?.recurrenceRule).toContain('INTERVAL=2');
   });
 
   it('GET /api/v1/health reports a healthy database', () => {
@@ -88,7 +287,7 @@ describe('Application (e2e)', () => {
     let tagSlug: string;
 
     it('creates supporting venue and tag records', async () => {
-      const venueResponse = await request(app.getHttpServer())
+      const venueResponse = await adminAgent
         .post('/api/v1/admin/venues')
         .send({
           name: `E2E Venue ${uniquePart}`,
@@ -101,7 +300,7 @@ describe('Application (e2e)', () => {
       venueIds.push(venueId);
       expect(venue.city).toBe('Hamilton');
 
-      const tagResponse = await request(app.getHttpServer())
+      const tagResponse = await adminAgent
         .post('/api/v1/admin/tags')
         .send({ name: `E2E Family ${uniquePart}` })
         .expect(201);
@@ -113,7 +312,7 @@ describe('Application (e2e)', () => {
     });
 
     it('rejects an activity whose end time is before its start time', () => {
-      return request(app.getHttpServer())
+      return adminAgent
         .post('/api/v1/admin/activities')
         .send({
           title: `Invalid ${uniquePart}`,
@@ -129,7 +328,7 @@ describe('Application (e2e)', () => {
     });
 
     it('rejects an activity whose end time equals its start time', () => {
-      return request(app.getHttpServer())
+      return adminAgent
         .post('/api/v1/admin/activities')
         .send({
           title: `Zero duration ${uniquePart}`,
@@ -145,7 +344,7 @@ describe('Application (e2e)', () => {
     });
 
     it('rejects an activity with a whitespace-only title', () => {
-      return request(app.getHttpServer())
+      return adminAgent
         .post('/api/v1/admin/activities')
         .send({
           title: '   ',
@@ -156,7 +355,7 @@ describe('Application (e2e)', () => {
     });
 
     it('rejects an activity that references a missing venue', () => {
-      return request(app.getHttpServer())
+      return adminAgent
         .post('/api/v1/admin/activities')
         .send({
           title: `Missing Venue ${uniquePart}`,
@@ -168,7 +367,7 @@ describe('Application (e2e)', () => {
     });
 
     it('rejects the removed koha cost type', () => {
-      return request(app.getHttpServer())
+      return adminAgent
         .post('/api/v1/admin/activities')
         .send({
           title: `Koha ${uniquePart}`,
@@ -180,7 +379,7 @@ describe('Application (e2e)', () => {
     });
 
     it('creates a draft activity with dates, venue and tags', async () => {
-      const response = await request(app.getHttpServer())
+      const response = await adminAgent
         .post('/api/v1/admin/activities')
         .send({
           title: activityTitle,
@@ -215,9 +414,7 @@ describe('Application (e2e)', () => {
       activityId = activity.id;
       activityIds.push(activityId);
       expect(activity.status).toBe('draft');
-      expect(activity.imageUrl).toBe(
-        '/images/activities/event-triptych.png',
-      );
+      expect(activity.imageUrl).toBe('/images/activities/event-triptych.png');
       expect(activity.venue.id).toBe(venueId);
       expect(activity.tags).toEqual([expect.objectContaining({ id: tagId })]);
       expect(activity.dates[0].timezone).toBe('Pacific/Auckland');
@@ -236,7 +433,7 @@ describe('Application (e2e)', () => {
     });
 
     it('rejects a duplicate activity slug', () => {
-      return request(app.getHttpServer())
+      return adminAgent
         .post('/api/v1/admin/activities')
         .send({
           title: activityTitle,
@@ -247,7 +444,7 @@ describe('Application (e2e)', () => {
     });
 
     it('partially updates the draft and replaces its tags', async () => {
-      const response = await request(app.getHttpServer())
+      const response = await adminAgent
         .patch(`/api/v1/admin/activities/${activityId}`)
         .send({ summary: 'Updated summary', tagIds: [] })
         .expect(200);
@@ -263,12 +460,12 @@ describe('Application (e2e)', () => {
     });
 
     it('publishes activities used by the public query tests', async () => {
-      await request(app.getHttpServer())
+      await adminAgent
         .patch(`/api/v1/admin/activities/${activityId}`)
         .send({ tagIds: [tagId] })
         .expect(200);
 
-      const publishResponse = await request(app.getHttpServer())
+      const publishResponse = await adminAgent
         .post(`/api/v1/admin/activities/${activityId}/publish`)
         .expect(200);
       const published = publishResponse.body as {
@@ -278,7 +475,7 @@ describe('Application (e2e)', () => {
       expect(published.status).toBe('published');
       expect(published.publishedAt).not.toBeNull();
 
-      const laterResponse = await request(app.getHttpServer())
+      const laterResponse = await adminAgent
         .post('/api/v1/admin/activities')
         .send({
           title: `Later E2E Activity ${uniquePart}`,
@@ -289,7 +486,7 @@ describe('Application (e2e)', () => {
         .expect(201);
       laterActivityId = (laterResponse.body as { id: string }).id;
       activityIds.push(laterActivityId);
-      await request(app.getHttpServer())
+      await adminAgent
         .post(`/api/v1/admin/activities/${laterActivityId}/publish`)
         .expect(200);
     });
@@ -440,7 +637,7 @@ describe('Application (e2e)', () => {
     });
 
     it('moves a cancelled activity into its separate public view', async () => {
-      const cancelResponse = await request(app.getHttpServer())
+      const cancelResponse = await adminAgent
         .post(`/api/v1/admin/activities/${activityId}/cancel`)
         .expect(200);
       const cancelled = cancelResponse.body as {
@@ -485,13 +682,13 @@ describe('Application (e2e)', () => {
         .query({ ...publicRange, status: 'draft' })
         .expect(400);
 
-      await request(app.getHttpServer())
+      await adminAgent
         .delete(`/api/v1/admin/activities/${activityId}`)
         .expect(409);
     });
 
     it('deletes a separate draft activity', async () => {
-      const createResponse = await request(app.getHttpServer())
+      const createResponse = await adminAgent
         .post('/api/v1/admin/activities')
         .send({
           title: `Deletable Draft ${uniquePart}`,
@@ -502,13 +699,11 @@ describe('Application (e2e)', () => {
       const draft = createResponse.body as { id: string };
       activityIds.push(draft.id);
 
-      await request(app.getHttpServer())
+      await adminAgent
         .delete(`/api/v1/admin/activities/${draft.id}`)
         .expect(204);
 
-      await request(app.getHttpServer())
-        .get(`/api/v1/admin/activities/${draft.id}`)
-        .expect(404);
+      await adminAgent.get(`/api/v1/admin/activities/${draft.id}`).expect(404);
     });
   });
 
@@ -525,7 +720,21 @@ describe('Application (e2e)', () => {
       if (tagIds.length) {
         await dataSource.getRepository(Tag).delete({ id: In(tagIds) });
       }
+      if (sourceIds.length) {
+        await dataSource.getRepository(Source).delete({ id: In(sourceIds) });
+      }
+      await dataSource
+        .getRepository(Venue)
+        .delete({ name: 'Imported E2E Venue' });
+      await dataSource.getRepository(Tag).delete({ slug: 'imported' });
+      if (adminUserId) {
+        await dataSource.getRepository(AdminSession).delete({ adminUserId });
+        await dataSource.getRepository(AdminUser).delete(adminUserId);
+      }
       await app.close();
+      await new Promise<void>((resolve, reject) => {
+        feedServer.close((error) => (error ? reject(error) : resolve()));
+      });
     }
   });
 });

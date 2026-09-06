@@ -4,6 +4,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import * as Joi from 'joi';
 import { ActivitiesModule } from './modules/activities/activities.module';
 import { HealthModule } from './modules/health/health.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { MediaModule } from './modules/media/media.module';
+import { IngestionModule } from './modules/ingestion/ingestion.module';
 
 @Module({
   imports: [
@@ -20,6 +23,10 @@ import { HealthModule } from './modules/health/health.module';
         DB_PASSWORD: Joi.string().required(),
         DB_DATABASE: Joi.string().required(),
         WEB_ORIGIN: Joi.string().uri().required(),
+        PUBLIC_API_URL: Joi.string().uri().optional(),
+        MEDIA_STORAGE_PATH: Joi.string().default('./media'),
+        ADMIN_COOKIE_SECURE: Joi.boolean().default(false),
+        IMPORTS_ENABLED: Joi.boolean().default(false),
       }),
       validationOptions: {
         allowUnknown: true,
@@ -46,7 +53,10 @@ import { HealthModule } from './modules/health/health.module';
             : ['error'],
       }),
     }),
+    AuthModule,
     ActivitiesModule,
+    MediaModule,
+    IngestionModule,
     HealthModule,
   ],
 })

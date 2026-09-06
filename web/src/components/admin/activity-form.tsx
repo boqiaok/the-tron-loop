@@ -12,6 +12,7 @@ import {
   createAdminActivity,
   type ActivityInput,
   updateAdminActivity,
+  uploadAdminImage,
 } from "@/lib/api/admin-activities";
 import {
   ACTIVITY_TIME_ZONE,
@@ -68,6 +69,7 @@ export function ActivityForm({
   const [form, setForm] = useState<FormState>(() => createInitialState(activity));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -170,6 +172,22 @@ export function ActivityForm({
     }
   }
 
+  async function uploadImage(file: File | undefined) {
+    if (!file) return;
+    setUploadingImage(true);
+    setError(null);
+    try {
+      const uploaded = await uploadAdminImage(file);
+      update("imageUrl", uploaded.url);
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Could not upload the image.",
+      );
+    } finally {
+      setUploadingImage(false);
+    }
+  }
+
   return (
     <form onSubmit={submit} className="space-y-6">
       {activity ? (
@@ -257,17 +275,34 @@ export function ActivityForm({
               className={inputClassName}
               type="text"
               inputMode="url"
-              pattern="(?:https?://.+|/images/.+)"
-              title="Enter an HTTP(S) URL or a local path beginning with /images/."
+              pattern="(?:https?://.+|/(?:images|media)/.+)"
+              title="Enter an HTTP(S) URL or a local path beginning with /images/ or /media/."
               placeholder="/images/activities/activity.jpg"
               value={form.imageUrl}
               onChange={(event) => update("imageUrl", event.target.value)}
               disabled={readOnly}
             />
             <p className="mt-1 text-xs text-muted-foreground">
-              Use a local <code>/images/...</code> path or a complete HTTP(S)
-              URL.
+              Upload a JPEG, PNG, WebP or AVIF image up to 5 MB, or enter a
+              complete HTTP(S) URL.
             </p>
+            {!readOnly ? (
+              <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-md border bg-white px-3 py-2 text-sm font-medium shadow-xs hover:bg-muted">
+                {uploadingImage ? (
+                  <LoaderCircle className="size-4 animate-spin" />
+                ) : null}
+                {uploadingImage ? "Uploading…" : "Upload image"}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/avif"
+                  className="sr-only"
+                  disabled={uploadingImage}
+                  onChange={(event) =>
+                    void uploadImage(event.target.files?.[0])
+                  }
+                />
+              </label>
+            ) : null}
           </div>
           <div>
             <label htmlFor="sourceUrl" className={labelClassName}>
@@ -371,12 +406,17 @@ export function ActivityForm({
                 <input
                   id={`recurrence-${date.key}`}
                   className={inputClassName}
-                  placeholder="Optional, for example: FREQ=WEEKLY;COUNT=4"
+                  placeholder="FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,WE;UNTIL=20261231"
                   value={date.recurrenceRule}
                   onChange={(event) =>
                     updateDate(date.key, { recurrenceRule: event.target.value })
                   }
                 />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Supports weekly or fortnightly intervals, multiple weekdays,
+                  an optional UNTIL/COUNT, and excluded dates using
+                  EXDATE=YYYYMMDD.
+                </p>
               </div>
             </fieldset>
           ))}

@@ -7,6 +7,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { getAdminActivities } from "@/lib/api/admin-activities";
 import { cn } from "@/lib/utils";
 import type { ActivityStatus } from "@/types/activity";
+import { requireAdminSession } from "@/lib/auth/admin-session";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,7 @@ export default async function AdminActivitiesPage({
 }: {
   searchParams: SearchParams;
 }) {
+  const { context } = await requireAdminSession();
   const raw = await searchParams;
   const statusValue = getSingle(raw.status);
   const status = STATUS_VALUES.has(statusValue as ActivityStatus)
@@ -36,7 +38,7 @@ export default async function AdminActivitiesPage({
     : undefined;
   const rawPage = Number(getSingle(raw.page) ?? "1");
   const page = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1;
-  const activities = await getAdminActivities({ page, status, limit: 10 });
+  const activities = await getAdminActivities({ page, status, limit: 10 }, context);
 
   return (
     <main className="mx-auto max-w-7xl px-5 py-8 sm:px-8">

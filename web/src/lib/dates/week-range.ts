@@ -25,6 +25,34 @@ export function getWeekRange(
   };
 }
 
+export function getWeekRangeFromDate(date: string): WeekRange | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const from = new TZDate(year, month - 1, day, ACTIVITY_TIME_ZONE);
+  if (
+    from.getFullYear() !== year ||
+    from.getMonth() !== month - 1 ||
+    from.getDate() !== day ||
+    from.getDay() !== 1
+  ) {
+    return null;
+  }
+  const to = addWeeks(from, 1);
+  return { from: from.toISOString(), to: to.toISOString(), label: formatWeekLabel(from, to) };
+}
+
+export function getWeekSlug(range: Pick<WeekRange, "from">): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: ACTIVITY_TIME_ZONE,
+  }).format(new Date(range.from));
+}
+
 function formatWeekLabel(from: Date, to: Date): string {
   const lastMoment = new Date(to.getTime() - 1);
   const startFormatter = new Intl.DateTimeFormat("en-NZ", {

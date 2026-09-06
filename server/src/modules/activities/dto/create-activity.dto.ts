@@ -59,12 +59,12 @@ export class CreateActivityDto {
     nullable: true,
     example: '/images/activities/event-triptych.png',
     description:
-      'An absolute HTTP(S) URL or a local path under /images/',
+      'An absolute HTTP(S) URL or a local path under /images/ or /media/',
   })
   @IsOptional()
-  @Matches(/^(?:https?:\/\/\S+|\/images\/[^\s\\]+)$/, {
+  @Matches(/^(?:https?:\/\/\S+|\/(?:images|media)\/[^\s\\]+)$/, {
     message:
-      'imageUrl must be an HTTP(S) URL or a local path under /images/',
+      'imageUrl must be an HTTP(S) URL or a local path under /images/ or /media/',
   })
   imageUrl?: string | null;
 

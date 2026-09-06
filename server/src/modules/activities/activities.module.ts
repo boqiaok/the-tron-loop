@@ -12,10 +12,12 @@ import { TagsController } from './tags.controller';
 import { TagsService } from './tags.service';
 import { VenuesController } from './venues.controller';
 import { VenuesService } from './venues.service';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Activity, ActivityDate, Venue, Tag, ActivityTag]),
+    AuthModule,
   ],
   controllers: [
     AdminActivitiesController,
@@ -24,5 +26,6 @@ import { VenuesService } from './venues.service';
     TagsController,
   ],
   providers: [ActivitiesService, VenuesService, TagsService],
+  exports: [ActivitiesService],
 })
 export class ActivitiesModule {}

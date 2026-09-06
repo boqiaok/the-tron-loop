@@ -25,7 +25,7 @@ export function SiteHeader() {
 
         <nav
           aria-label="Main navigation"
-          className="hidden items-stretch gap-9 self-stretch md:flex"
+          className="hidden items-stretch gap-5 self-stretch md:flex lg:gap-8"
         >
           <HeaderLink
             href="/this-week"
@@ -36,7 +36,15 @@ export function SiteHeader() {
           <HeaderLink href="/next-week" active={pathname === "/next-week"}>
             Next Week
           </HeaderLink>
-          <FutureNavItem>Regular Activities</FutureNavItem>
+          <HeaderLink href="/archive" active={pathname.startsWith("/archive")}>
+            Archive
+          </HeaderLink>
+          <HeaderLink
+            href="/regular-activities"
+            active={pathname === "/regular-activities"}
+          >
+            Regular Activities
+          </HeaderLink>
           <HeaderLink href="/about" active={pathname === "/about"}>
             About
           </HeaderLink>
@@ -73,6 +81,20 @@ export function SiteHeader() {
             Next week
           </MobileLink>
           <MobileLink
+            href="/archive"
+            active={pathname.startsWith("/archive")}
+            onClick={() => setMenuOpen(false)}
+          >
+            Archive
+          </MobileLink>
+          <MobileLink
+            href="/regular-activities"
+            active={pathname === "/regular-activities"}
+            onClick={() => setMenuOpen(false)}
+          >
+            Regular activities
+          </MobileLink>
+          <MobileLink
             href="/about"
             active={pathname === "/about"}
             onClick={() => setMenuOpen(false)}
@@ -107,14 +129,6 @@ function HeaderLink({
     >
       {children}
     </Link>
-  );
-}
-
-function FutureNavItem({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="flex cursor-default items-center text-sm text-muted-foreground">
-      {children}
-    </span>
   );
 }
 

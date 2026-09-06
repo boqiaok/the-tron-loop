@@ -1,12 +1,14 @@
 import { ActivityForm } from "@/components/admin/activity-form";
 import { getAdminTags, getAdminVenues } from "@/lib/api/admin-activities";
+import { requireAdminSession } from "@/lib/auth/admin-session";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewActivityPage() {
+  const { context } = await requireAdminSession();
   const [tags, venues] = await Promise.all([
-    getAdminTags(),
-    getAdminVenues(),
+    getAdminTags(context),
+    getAdminVenues(context),
   ]);
 
   return (

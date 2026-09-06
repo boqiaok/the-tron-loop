@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import {
   ApiCreatedResponse,
   ApiOkResponse,
@@ -9,9 +9,11 @@ import { toVenueResponse } from './activity.mapper';
 import { VenueResponseDto } from './dto/activity-response.dto';
 import { CreateVenueDto } from './dto/create-venue.dto';
 import { VenuesService } from './venues.service';
+import { AdminSessionGuard } from '../auth/admin-session.guard';
 
 @ApiTags('venues')
 @Controller('admin/venues')
+@UseGuards(AdminSessionGuard)
 export class VenuesController {
   constructor(private readonly venuesService: VenuesService) {}
 

@@ -6,7 +6,13 @@ import { formatActivityDate } from "@/lib/dates/week-range";
 import { cn } from "@/lib/utils";
 import type { Activity } from "@/types/activity";
 
-export function ActivityCard({ activity }: { activity: Activity }) {
+export function ActivityCard({
+  activity,
+  scheduleLabels,
+}: {
+  activity: Activity;
+  scheduleLabels?: string[];
+}) {
   const isCancelled = activity.status === "cancelled";
   const primaryTag = activity.tags[0];
   const imageStyle = getActivityImageStyle(activity);
@@ -76,15 +82,17 @@ export function ActivityCard({ activity }: { activity: Activity }) {
           <div className="flex items-start gap-1.5">
             <CalendarDays className="mt-px size-3.5 shrink-0 text-primary" />
             <ul className="flex flex-wrap gap-x-3 gap-y-1">
-              {activity.dates.map((date) => (
-                <li key={date.id}>
-                  {formatActivityDate(
-                    date.startsAt,
-                    date.endsAt,
-                    date.isAllDay,
-                  )}
-                </li>
-              ))}
+              {scheduleLabels
+                ? scheduleLabels.map((label) => <li key={label}>{label}</li>)
+                : activity.dates.map((date) => (
+                    <li key={date.id}>
+                      {formatActivityDate(
+                        date.startsAt,
+                        date.endsAt,
+                        date.isAllDay,
+                      )}
+                    </li>
+                  ))}
             </ul>
           </div>
 

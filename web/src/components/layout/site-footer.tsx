@@ -17,7 +17,12 @@ export function SiteFooter() {
           <Link href="/next-week" className="hover:underline">
             Next Week
           </Link>
-          <span className="opacity-70">Regular Activities</span>
+          <Link href="/archive" className="hover:underline">
+            Archive
+          </Link>
+          <Link href="/regular-activities" className="hover:underline">
+            Regular Activities
+          </Link>
           <Link href="/about" className="hover:underline">
             About
           </Link>

@@ -1,4 +1,5 @@
 import type {
+  Activity,
   ActivityFilterOptions,
   ActivityFilters,
   PaginatedActivities,
@@ -74,4 +75,8 @@ export async function getActivityCount(
   );
 
   return page.total;
+}
+
+export function getRegularActivities(): Promise<Activity[]> {
+  return fetchJson<Activity[]>("/activities/regular");
 }

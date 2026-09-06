@@ -1,5 +1,6 @@
 import { CalendarRange, ExternalLink } from "lucide-react";
 import Link from "next/link";
+import { AdminLogoutButton } from "@/components/admin/admin-logout-button";
 
 export default function AdminLayout({
   children,
@@ -25,13 +26,20 @@ export default function AdminLayout({
             </span>
           </Link>
 
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--link)] hover:underline"
-          >
-            View public site
-            <ExternalLink className="size-3.5" />
-          </Link>
+          <div className="flex items-center gap-3">
+            <nav className="hidden items-center gap-3 text-sm font-medium sm:flex">
+              <Link href="/admin/activities" className="hover:underline">Activities</Link>
+              <Link href="/admin/sources" className="hover:underline">Sources</Link>
+            </nav>
+            <Link
+              href="/"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--link)] hover:underline"
+            >
+              View public site
+              <ExternalLink className="size-3.5" />
+            </Link>
+            <AdminLogoutButton />
+          </div>
         </div>
       </header>
 

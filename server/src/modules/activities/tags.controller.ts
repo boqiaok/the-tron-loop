@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import {
   ApiConflictResponse,
   ApiCreatedResponse,
@@ -10,9 +10,11 @@ import { toTagResponse } from './activity.mapper';
 import { TagResponseDto } from './dto/activity-response.dto';
 import { CreateTagDto } from './dto/create-tag.dto';
 import { TagsService } from './tags.service';
+import { AdminSessionGuard } from '../auth/admin-session.guard';
 
 @ApiTags('tags')
 @Controller('admin/tags')
+@UseGuards(AdminSessionGuard)
 export class TagsController {
   constructor(private readonly tagsService: TagsService) {}
 

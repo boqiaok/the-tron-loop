@@ -1,5 +1,8 @@
 import { redirect } from "next/navigation";
 
-export default function AdminPage() {
+import { requireAdminSession } from "@/lib/auth/admin-session";
+
+export default async function AdminPage() {
+  await requireAdminSession();
   redirect("/admin/activities");
 }

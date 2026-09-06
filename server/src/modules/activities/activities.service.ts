@@ -205,6 +205,31 @@ export class ActivitiesService {
     };
   }
 
+  async findRegularActivities(): Promise<ActivityResponseDto[]> {
+    const activities = await this.activitiesRepository
+      .createQueryBuilder('activity')
+      .innerJoin('activity.dates', 'recurringDate')
+      .where('activity.status = :status', { status: ActivityStatus.Published })
+      .andWhere('recurringDate.recurrenceRule IS NOT NULL')
+      .select('activity.id', 'id')
+      .distinct(true)
+      .getRawMany<{ id: string }>();
+    const ids = activities.map(({ id }) => id);
+    if (!ids.length) return [];
+
+    const records = await this.activitiesRepository.find({
+      where: { id: In(ids) },
+      relations: ACTIVITY_RELATIONS,
+      order: { title: 'ASC' },
+    });
+    return records.map((activity) => ({
+      ...toActivityResponse(activity),
+      dates: toActivityResponse(activity).dates.filter(
+        (date) => date.recurrenceRule !== null,
+      ),
+    }));
+  }
+
   async findAdminById(id: string): Promise<ActivityResponseDto> {
     const activity = await this.activitiesRepository.findOne({
       where: { id },
@@ -468,9 +493,74 @@ export class ActivitiesService {
           'Activity date end time must be later than its start time',
         );
       }
+      if (date.recurrenceRule) {
+        this.validateRecurrenceRule(date.recurrenceRule);
+      }
     }
 
     return dates;
+  }
+
+  private validateRecurrenceRule(rule: string): void {
+    const fields = new Map<string, string>();
+    for (const part of rule.split(';')) {
+      const [key, value, ...extra] = part.split('=');
+      if (!key || !value || extra.length || fields.has(key)) {
+        throw new BadRequestException('Recurrence rule is not valid');
+      }
+      fields.set(key.toUpperCase(), value.toUpperCase());
+    }
+    const allowed = new Set([
+      'FREQ',
+      'INTERVAL',
+      'BYDAY',
+      'UNTIL',
+      'COUNT',
+      'EXDATE',
+    ]);
+    if ([...fields.keys()].some((key) => !allowed.has(key))) {
+      throw new BadRequestException(
+        'Recurrence rule contains an unsupported field',
+      );
+    }
+    if (fields.get('FREQ') !== 'WEEKLY') {
+      throw new BadRequestException('Only weekly recurrence is supported');
+    }
+    if (
+      fields.has('INTERVAL') &&
+      !['1', '2'].includes(fields.get('INTERVAL')!)
+    ) {
+      throw new BadRequestException('Recurrence interval must be 1 or 2 weeks');
+    }
+    if (
+      fields.has('BYDAY') &&
+      !/^(MO|TU|WE|TH|FR|SA|SU)(,(MO|TU|WE|TH|FR|SA|SU))*$/.test(
+        fields.get('BYDAY')!,
+      )
+    ) {
+      throw new BadRequestException('Recurrence weekdays are not valid');
+    }
+    if (
+      fields.has('UNTIL') &&
+      !/^\d{8}(T\d{6}Z)?$/.test(fields.get('UNTIL')!)
+    ) {
+      throw new BadRequestException(
+        'Recurrence UNTIL must use YYYYMMDD or UTC date-time',
+      );
+    }
+    if (fields.has('COUNT') && !/^[1-9]\d{0,2}$/.test(fields.get('COUNT')!)) {
+      throw new BadRequestException(
+        'Recurrence COUNT must be between 1 and 999',
+      );
+    }
+    if (
+      fields.has('EXDATE') &&
+      !/^\d{8}(,\d{8})*$/.test(fields.get('EXDATE')!)
+    ) {
+      throw new BadRequestException(
+        'Recurrence EXDATE must contain YYYYMMDD dates',
+      );
+    }
   }
 
   private async validateReferences(

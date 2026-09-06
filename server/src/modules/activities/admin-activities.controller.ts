@@ -10,6 +10,7 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiConflictResponse,
@@ -28,9 +29,11 @@ import {
 import { AdminActivityQueryDto } from './dto/activity-query.dto';
 import { CreateActivityDto } from './dto/create-activity.dto';
 import { UpdateActivityDto } from './dto/update-activity.dto';
+import { AdminSessionGuard } from '../auth/admin-session.guard';
 
 @ApiTags('admin activities')
 @Controller('admin/activities')
+@UseGuards(AdminSessionGuard)
 export class AdminActivitiesController {
   constructor(private readonly activitiesService: ActivitiesService) {}
 

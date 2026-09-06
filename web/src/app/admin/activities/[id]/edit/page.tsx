@@ -7,6 +7,7 @@ import {
   getAdminTags,
   getAdminVenues,
 } from "@/lib/api/admin-activities";
+import { requireAdminSession } from "@/lib/auth/admin-session";
 
 export const dynamic = "force-dynamic";
 
@@ -16,18 +17,19 @@ export default async function EditActivityPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const { context } = await requireAdminSession();
   let activity;
 
   try {
-    activity = await getAdminActivity(id);
+    activity = await getAdminActivity(id, context);
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) notFound();
     throw error;
   }
 
   const [tags, venues] = await Promise.all([
-    getAdminTags(),
-    getAdminVenues(),
+    getAdminTags(context),
+    getAdminVenues(context),
   ]);
 
   return (

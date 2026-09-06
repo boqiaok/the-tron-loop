@@ -15,10 +15,18 @@ import { ActivityStatus } from '../enums/activity-status.enum';
 import { ActivityDate } from './activity-date.entity';
 import { ActivityTag } from './activity-tag.entity';
 import { Venue } from './venue.entity';
+import { Source } from '../../ingestion/entities/source.entity';
 
 @Entity({ name: 'activities' })
 @Index('UQ_activities_slug', ['slug'], { unique: true })
 @Index('IDX_activities_venue_id', ['venueId'])
+@Index('UQ_activities_source_external_id', ['sourceId', 'externalId'], {
+  unique: true,
+  where: '"source_id" IS NOT NULL AND "external_id" IS NOT NULL',
+})
+@Index('IDX_activities_import_fingerprint', ['importFingerprint'], {
+  where: '"import_fingerprint" IS NOT NULL',
+})
 @Check(
   'CHK_activities_cost_amount_non_negative',
   '"cost_amount_from" IS NULL OR "cost_amount_from" >= 0',
@@ -83,6 +91,24 @@ export class Activity {
 
   @Column({ name: 'source_url', type: 'text', nullable: true })
   sourceUrl!: string | null;
+
+  @Column({ name: 'source_id', type: 'uuid', nullable: true })
+  sourceId!: string | null;
+
+  @ManyToOne(() => Source, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'source_id' })
+  source!: Source | null;
+
+  @Column({ name: 'external_id', type: 'varchar', length: 255, nullable: true })
+  externalId!: string | null;
+
+  @Column({
+    name: 'import_fingerprint',
+    type: 'char',
+    length: 64,
+    nullable: true,
+  })
+  importFingerprint!: string | null;
 
   @Column({
     type: 'enum',

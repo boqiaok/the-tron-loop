@@ -10,7 +10,7 @@ import Link from "next/link";
 import { ActivityExplorer } from "@/components/activities/activity-explorer";
 import { buttonVariants } from "@/components/ui/button";
 import { getActivities, getActivityFilterOptions } from "@/lib/api/activities";
-import { getWeekRange } from "@/lib/dates/week-range";
+import { getWeekRange, getWeekSlug, type WeekRange } from "@/lib/dates/week-range";
 import { cn } from "@/lib/utils";
 import type { ActivityCostType, ActivityFilters } from "@/types/activity";
 
@@ -19,12 +19,13 @@ export type ActivitySearchParams = Promise<
 >;
 
 interface ActivityDirectoryProps {
-  activePage: "this-week" | "next-week";
+  activePage: "this-week" | "next-week" | "archive";
   heading: string;
   intro: string;
   pathname: string;
   searchParams: ActivitySearchParams;
   weekOffset: number;
+  rangeOverride?: WeekRange;
 }
 
 const COST_TYPES = new Set<ActivityCostType>(["free", "paid", "unknown"]);
@@ -36,9 +37,10 @@ export async function ActivityDirectory({
   pathname,
   searchParams,
   weekOffset,
+  rangeOverride,
 }: ActivityDirectoryProps) {
   const filters = parseFilters(await searchParams);
-  const range = getWeekRange(weekOffset);
+  const range = rangeOverride ?? getWeekRange(weekOffset);
   const [activities, filterOptions] = await Promise.all([
     getActivities(range, filters),
     getActivityFilterOptions(range),
@@ -52,7 +54,11 @@ export async function ActivityDirectory({
           {range.label}
         </p>
         <p className="mt-1 text-xs font-bold tracking-[0.14em] text-[var(--gold)] uppercase">
-          {activePage === "this-week" ? "This week" : "Next week"} ·{" "}
+          {activePage === "this-week"
+            ? "This week"
+            : activePage === "next-week"
+              ? "Next week"
+              : "Archive"} ·{" "}
           {range.label}
         </p>
 
@@ -71,13 +77,13 @@ export async function ActivityDirectory({
             className="hidden shrink-0 gap-2 sm:flex"
           >
             <WeekArrow
-              href={activePage === "next-week" ? "/this-week" : undefined}
+              href={getPreviousWeekHref(activePage, range)}
               label="Previous week"
             >
               <ArrowLeft />
             </WeekArrow>
             <WeekArrow
-              href={activePage === "this-week" ? "/next-week" : undefined}
+              href={getNextWeekHref(activePage, range)}
               label="Next week"
             >
               <ArrowRight />
@@ -103,13 +109,13 @@ export async function ActivityDirectory({
 
         <nav aria-label="Change week" className="mt-5 flex gap-2 sm:hidden">
           <WeekArrow
-            href={activePage === "next-week" ? "/this-week" : undefined}
+            href={getPreviousWeekHref(activePage, range)}
             label="Previous week"
           >
             <ArrowLeft />
           </WeekArrow>
           <WeekArrow
-            href={activePage === "this-week" ? "/next-week" : undefined}
+            href={getNextWeekHref(activePage, range)}
             label="Next week"
           >
             <ArrowRight />
@@ -128,6 +134,38 @@ export async function ActivityDirectory({
       </div>
     </main>
   );
+}
+
+function getPreviousWeekHref(
+  activePage: ActivityDirectoryProps["activePage"],
+  range: WeekRange,
+): string | undefined {
+  if (activePage === "this-week") {
+    return `/archive/${getWeekSlug(getWeekRange(-1))}`;
+  }
+  if (activePage === "next-week") return "/this-week";
+  return `/archive/${shiftWeekSlug(range, -1)}`;
+}
+
+function getNextWeekHref(
+  activePage: ActivityDirectoryProps["activePage"],
+  range: WeekRange,
+): string | undefined {
+  if (activePage === "this-week") return "/next-week";
+  if (activePage === "next-week") return undefined;
+  const current = getWeekRange(0);
+  const nextSlug = shiftWeekSlug(range, 1);
+  return nextSlug === getWeekSlug(current)
+    ? "/this-week"
+    : `/archive/${nextSlug}`;
+}
+
+function shiftWeekSlug(range: WeekRange, weeks: number): string {
+  return getWeekSlug({
+    from: new Date(
+      new Date(range.from).getTime() + weeks * 7 * 24 * 60 * 60 * 1000,
+    ).toISOString(),
+  });
 }
 
 function WeekArrow({

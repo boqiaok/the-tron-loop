@@ -13,6 +13,7 @@
     "migration:run": "pnpm --filter server migration:run",
     "migration:revert": "pnpm --filter server migration:revert",
     "migration:show": "pnpm --filter server migration:show",
-    "seed:dev": "pnpm --filter server seed:dev"
+    "seed:dev": "pnpm --filter server seed:dev",
+    "admin:create": "pnpm --filter server admin:create"
   }
 }
