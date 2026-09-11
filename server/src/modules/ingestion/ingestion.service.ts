@@ -12,7 +12,6 @@ import { createSlug } from '../activities/activity-slug';
 import { Activity } from '../activities/entities/activity.entity';
 import { Tag } from '../activities/entities/tag.entity';
 import { Venue } from '../activities/entities/venue.entity';
-import { ActivityCostType } from '../activities/enums/activity-cost-type.enum';
 import { ActivityStatus } from '../activities/enums/activity-status.enum';
 import {
   CreateSourceDto,
@@ -23,24 +22,10 @@ import {
 import { ImportItem, ImportItemOutcome } from './entities/import-item.entity';
 import { ImportRun, ImportRunStatus } from './entities/import-run.entity';
 import { Source } from './entities/source.entity';
-
-interface FeedActivity {
-  externalId: string;
-  title: string;
-  summary: string | null;
-  description: string;
-  imageUrl: string | null;
-  sourceUrl: string | null;
-  startsAt: string;
-  endsAt: string | null;
-  isAllDay: boolean;
-  venue: { name: string; address: string | null; suburb: string | null } | null;
-  tags: string[];
-  costType: ActivityCostType;
-  costAmountFrom: number | null;
-  costDetails: string | null;
-  raw: Record<string, unknown>;
-}
+import { EventfindaAdapter } from './eventfinda.adapter';
+import { JsonFeedAdapter } from './json-feed.adapter';
+import { ImportedActivity, SourceAdapter } from './source-adapter';
+import { SourceType } from './source-type.enum';
 
 @Injectable()
 export class IngestionService {
@@ -58,6 +43,8 @@ export class IngestionService {
     @InjectRepository(Tag)
     private readonly tags: Repository<Tag>,
     private readonly activitiesService: ActivitiesService,
+    private readonly jsonFeedAdapter: JsonFeedAdapter,
+    private readonly eventfindaAdapter: EventfindaAdapter,
   ) {}
 
   async createSource(dto: CreateSourceDto): Promise<SourceResponseDto> {
@@ -67,6 +54,7 @@ export class IngestionService {
     const source = await this.sources.save(
       this.sources.create({
         name: dto.name.trim(),
+        sourceType: dto.sourceType,
         feedUrl: dto.feedUrl,
         enabled: dto.enabled ?? true,
         scheduleHours: dto.scheduleHours ?? 6,
@@ -82,6 +70,7 @@ export class IngestionService {
   ): Promise<SourceResponseDto> {
     const source = await this.getSource(id);
     if (dto.name !== undefined) source.name = dto.name.trim();
+    if (dto.sourceType !== undefined) source.sourceType = dto.sourceType;
     if (dto.feedUrl !== undefined) source.feedUrl = dto.feedUrl;
     if (dto.enabled !== undefined) source.enabled = dto.enabled;
     if (dto.scheduleHours !== undefined)
@@ -132,10 +121,11 @@ export class IngestionService {
     );
 
     try {
-      const feed = await this.fetchFeed(source.feedUrl);
+      const adapter = this.getAdapter(source.sourceType);
+      const feed = await adapter.fetch(source);
       for (const raw of feed) {
         try {
-          const item = parseFeedActivity(raw);
+          const item = adapter.parse(raw);
           const outcome = await this.importItem(source, run, item);
           incrementOutcome(run, outcome);
         } catch (error) {
@@ -144,7 +134,7 @@ export class IngestionService {
             this.items.create({
               runId: run.id,
               sourceId,
-              externalId: readOptionalString(raw, 'externalId') ?? 'unknown',
+              externalId: readExternalId(raw),
               fingerprint: fingerprint(JSON.stringify(raw)),
               activityId: null,
               outcome: ImportItemOutcome.Failed,
@@ -181,10 +171,14 @@ export class IngestionService {
   private async importItem(
     source: Source,
     run: ImportRun,
-    item: FeedActivity,
+    item: ImportedActivity,
   ): Promise<ImportItemOutcome> {
+    const firstDate = item.dates[0];
+    if (!firstDate && !item.isCancelled) {
+      throw new BadRequestException('An imported activity requires a date');
+    }
     const itemFingerprint = fingerprint(
-      `${normalize(item.title)}|${new Date(item.startsAt).toISOString()}|${normalize(item.venue?.name ?? '')}`,
+      `${normalize(item.title)}|${firstDate?.startsAt ?? 'cancelled'}|${normalize(item.venue?.name ?? '')}`,
     );
     const existing = await this.activities.findOneBy({
       sourceId: source.id,
@@ -195,14 +189,17 @@ export class IngestionService {
     let outcome: ImportItemOutcome;
     let message: string | null = null;
 
-    if (existing && existing.status !== ActivityStatus.Draft) {
+    if (item.isCancelled) {
+      outcome = ImportItemOutcome.ReviewRequired;
+      message = 'The source marks this activity as cancelled';
+    } else if (existing && existing.status !== ActivityStatus.Draft) {
       outcome = ImportItemOutcome.ReviewRequired;
       message = 'The existing imported activity is no longer a draft';
     } else {
       const duplicate = await this.activities.findOneBy({
         importFingerprint: itemFingerprint,
       });
-      if (duplicate && duplicate.id !== existing?.id) {
+      if (!existing && duplicate) {
         outcome = ImportItemOutcome.Duplicate;
         activityId = duplicate.id;
         message = 'A matching title, start time and venue already exists';
@@ -221,21 +218,22 @@ export class IngestionService {
           costDetails: item.costDetails,
           venueId,
           tagIds,
-          dates: [
-            {
-              startsAt: item.startsAt,
-              endsAt: item.endsAt,
-              timezone: 'Pacific/Auckland',
-              isAllDay: item.isAllDay,
-              recurrenceRule: null,
-            },
-          ],
+          dates: item.dates.map((date) => ({
+            ...date,
+            recurrenceRule: null,
+          })),
         };
 
         if (existing) {
           await this.activitiesService.update(existing.id, input);
           activityId = existing.id;
-          outcome = ImportItemOutcome.Updated;
+          if (duplicate && duplicate.id !== existing.id) {
+            outcome = ImportItemOutcome.ReviewRequired;
+            message =
+              'This existing imported activity matches another activity';
+          } else {
+            outcome = ImportItemOutcome.Updated;
+          }
         } else {
           const externalSlug =
             createSlug(item.externalId).slice(0, 60) || run.id.slice(0, 8);
@@ -271,7 +269,7 @@ export class IngestionService {
   }
 
   private async resolveVenue(
-    venue: FeedActivity['venue'],
+    venue: ImportedActivity['venue'],
   ): Promise<string | null> {
     if (!venue) return null;
     let existing = await this.venues
@@ -308,173 +306,32 @@ export class IngestionService {
     return ids;
   }
 
-  private async fetchFeed(url: string): Promise<Record<string, unknown>[]> {
-    const response = await fetch(url, {
-      headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!response.ok)
-      throw new BadRequestException(`Source returned HTTP ${response.status}`);
-    const text = await response.text();
-    if (text.length > 2_000_000)
-      throw new BadRequestException('Source response exceeds 2 MB');
-    let payload: unknown;
-    try {
-      payload = JSON.parse(text);
-    } catch {
-      throw new BadRequestException('Source did not return valid JSON');
-    }
-    if (
-      !isRecord(payload) ||
-      !Array.isArray(payload.items) ||
-      payload.items.length > 500
-    ) {
-      throw new BadRequestException(
-        'Source JSON must contain an items array with at most 500 entries',
-      );
-    }
-    if (!payload.items.every(isRecord))
-      throw new BadRequestException('Every source item must be an object');
-    return payload.items;
-  }
-
   private async getSource(id: string): Promise<Source> {
     const source = await this.sources.findOneBy({ id });
     if (!source) throw new NotFoundException('Source not found');
     return source;
   }
-}
 
-function parseFeedActivity(raw: Record<string, unknown>): FeedActivity {
-  const externalId = readRequiredString(raw, 'externalId', 255);
-  const title = readRequiredString(raw, 'title', 200);
-  const startsAt = readRequiredDate(raw, 'startsAt');
-  const endsAt = readOptionalDate(raw, 'endsAt');
-  if (endsAt && new Date(endsAt) <= new Date(startsAt)) {
-    throw new BadRequestException('endsAt must be later than startsAt');
+  private getAdapter(sourceType: SourceType): SourceAdapter {
+    if (sourceType === SourceType.Eventfinda) return this.eventfindaAdapter;
+    return this.jsonFeedAdapter;
   }
-  const costType =
-    readOptionalString(raw, 'costType') ?? ActivityCostType.Unknown;
-  if (!Object.values(ActivityCostType).includes(costType as ActivityCostType)) {
-    throw new BadRequestException('costType is invalid');
-  }
-  const tags = raw.tags ?? [];
-  if (!Array.isArray(tags) || !tags.every((tag) => typeof tag === 'string')) {
-    throw new BadRequestException('tags must be an array of strings');
-  }
-  const venue = raw.venue;
-  if (venue !== undefined && venue !== null && !isRecord(venue)) {
-    throw new BadRequestException('venue must be an object');
-  }
-  return {
-    externalId,
-    title,
-    summary: readOptionalString(raw, 'summary', 500),
-    description: readOptionalString(raw, 'description') ?? title,
-    imageUrl: readOptionalUrl(raw, 'imageUrl'),
-    sourceUrl: readOptionalUrl(raw, 'sourceUrl'),
-    startsAt,
-    endsAt,
-    isAllDay: typeof raw.isAllDay === 'boolean' ? raw.isAllDay : false,
-    venue: venue
-      ? {
-          name: readRequiredString(venue, 'name', 200),
-          address: readOptionalString(venue, 'address'),
-          suburb: readOptionalString(venue, 'suburb', 120),
-        }
-      : null,
-    tags: [...new Set(tags.map((tag) => tag.trim()).filter(Boolean))],
-    costType: costType as ActivityCostType,
-    costAmountFrom: readOptionalNumber(raw, 'costAmountFrom'),
-    costDetails: readOptionalString(raw, 'costDetails', 255),
-    raw,
-  };
-}
-
-function readRequiredString(
-  record: Record<string, unknown>,
-  key: string,
-  max = 10_000,
-): string {
-  const value = readOptionalString(record, key, max);
-  if (!value) throw new BadRequestException(`${key} is required`);
-  return value;
-}
-
-function readOptionalString(
-  record: Record<string, unknown>,
-  key: string,
-  max = 10_000,
-): string | null {
-  const value = record[key];
-  if (value === undefined || value === null || value === '') return null;
-  if (typeof value !== 'string' || value.trim().length > max) {
-    throw new BadRequestException(
-      `${key} must be a string no longer than ${max} characters`,
-    );
-  }
-  return value.trim();
-}
-
-function readRequiredDate(
-  record: Record<string, unknown>,
-  key: string,
-): string {
-  const value = readRequiredString(record, key, 100);
-  if (Number.isNaN(Date.parse(value)))
-    throw new BadRequestException(`${key} must be an ISO date-time`);
-  return value;
-}
-
-function readOptionalDate(
-  record: Record<string, unknown>,
-  key: string,
-): string | null {
-  const value = readOptionalString(record, key, 100);
-  if (value && Number.isNaN(Date.parse(value)))
-    throw new BadRequestException(`${key} must be an ISO date-time`);
-  return value;
-}
-
-function readOptionalUrl(
-  record: Record<string, unknown>,
-  key: string,
-): string | null {
-  const value = readOptionalString(record, key, 2_000);
-  if (!value) return null;
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new BadRequestException(`${key} must be an HTTP(S) URL`);
-  }
-  if (!['http:', 'https:'].includes(url.protocol))
-    throw new BadRequestException(`${key} must be an HTTP(S) URL`);
-  return url.toString();
-}
-
-function readOptionalNumber(
-  record: Record<string, unknown>,
-  key: string,
-): number | null {
-  const value = record[key];
-  if (value === undefined || value === null) return null;
-  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
-    throw new BadRequestException(`${key} must be a non-negative number`);
-  }
-  return value;
 }
 
 function fingerprint(value: string): string {
   return createHash('sha256').update(value).digest('hex');
 }
 
-function normalize(value: string): string {
-  return value.trim().toLowerCase().replace(/\s+/g, ' ');
+function readExternalId(raw: Record<string, unknown>): string {
+  const value = raw.externalId ?? raw.id;
+  if (typeof value === 'string' || typeof value === 'number') {
+    return String(value).slice(0, 255);
+  }
+  return 'unknown';
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+function normalize(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
 function incrementOutcome(run: ImportRun, outcome: ImportItemOutcome): void {
@@ -494,6 +351,7 @@ function mapSource(source: Source): SourceResponseDto {
   return {
     id: source.id,
     name: source.name,
+    sourceType: source.sourceType,
     feedUrl: source.feedUrl,
     enabled: source.enabled,
     scheduleHours: source.scheduleHours,

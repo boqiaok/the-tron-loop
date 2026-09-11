@@ -16,6 +16,7 @@ import { hashPassword } from './../src/modules/auth/password';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { Source } from './../src/modules/ingestion/entities/source.entity';
+import { SourceType } from './../src/modules/ingestion/source-type.enum';
 
 describe('Application (e2e)', () => {
   let app: INestApplication<App>;
@@ -145,7 +146,12 @@ describe('Application (e2e)', () => {
   it('imports JSON feed activities as drafts and records duplicates', async () => {
     const sourceResponse = await adminAgent
       .post('/api/v1/admin/sources')
-      .send({ name: `E2E feed ${Date.now()}`, feedUrl, scheduleHours: 24 })
+      .send({
+        name: `E2E feed ${Date.now()}`,
+        sourceType: SourceType.JsonFeed,
+        feedUrl,
+        scheduleHours: 24,
+      })
       .expect(201);
     const source = sourceResponse.body as { id: string };
     sourceIds.push(source.id);

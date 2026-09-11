@@ -27,6 +27,8 @@ import { IngestionModule } from './modules/ingestion/ingestion.module';
         MEDIA_STORAGE_PATH: Joi.string().default('./media'),
         ADMIN_COOKIE_SECURE: Joi.boolean().default(false),
         IMPORTS_ENABLED: Joi.boolean().default(false),
+        EVENTFINDA_USERNAME: Joi.string().optional(),
+        EVENTFINDA_PASSWORD: Joi.string().optional(),
       }),
       validationOptions: {
         allowUnknown: true,

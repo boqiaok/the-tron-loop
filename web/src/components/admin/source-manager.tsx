@@ -28,6 +28,11 @@ export function SourceManager({
   const [creating, setCreating] = useState(false);
   const [runningId, setRunningId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sourceType, setSourceType] =
+    useState<ActivitySource["sourceType"]>("eventfinda");
+  const [feedUrl, setFeedUrl] = useState(
+    "https://api.eventfinda.co.nz/v2/events.json",
+  );
 
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -38,13 +43,20 @@ export function SourceManager({
     try {
       await createAdminSource({
         name: String(data.get("name")),
-        feedUrl: String(data.get("feedUrl")),
+        sourceType,
+        feedUrl,
         scheduleHours: Number(data.get("scheduleHours")),
       });
       form.reset();
+      setSourceType("eventfinda");
+      setFeedUrl("https://api.eventfinda.co.nz/v2/events.json");
       router.refresh();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not create the source.");
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Could not create the source.",
+      );
     } finally {
       setCreating(false);
     }
@@ -57,7 +69,9 @@ export function SourceManager({
       await runAdminImport(sourceId);
       router.refresh();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not run the import.");
+      setError(
+        caught instanceof Error ? caught.message : "Could not run the import.",
+      );
     } finally {
       setRunningId(null);
     }
@@ -73,22 +87,68 @@ export function SourceManager({
       ) : null}
 
       <section className="rounded-xl border bg-white p-5 shadow-sm sm:p-6">
-        <h2 className="text-lg font-semibold text-primary">Add JSON feed</h2>
+        <h2 className="text-lg font-semibold text-primary">Add source</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Imported activities are always saved as drafts for review.
         </p>
-        <form onSubmit={create} className="mt-5 grid gap-4 lg:grid-cols-[1fr_2fr_9rem_auto] lg:items-end">
+        <form
+          onSubmit={create}
+          className="mt-5 grid gap-4 lg:grid-cols-[1fr_10rem_2fr_9rem_auto] lg:items-end"
+        >
           <label className="text-sm font-medium">
             Name
-            <input name="name" required maxLength={120} className={`${inputClassName} mt-1.5`} />
+            <input
+              name="name"
+              required
+              maxLength={120}
+              className={`${inputClassName} mt-1.5`}
+            />
+          </label>
+          <label className="text-sm font-medium">
+            Type
+            <select
+              name="sourceType"
+              value={sourceType}
+              onChange={(event) => {
+                const nextType = event.target
+                  .value as ActivitySource["sourceType"];
+                setSourceType(nextType);
+                setFeedUrl(
+                  nextType === "eventfinda"
+                    ? "https://api.eventfinda.co.nz/v2/events.json"
+                    : "",
+                );
+              }}
+              className={`${inputClassName} mt-1.5`}
+            >
+              <option value="eventfinda">Eventfinda</option>
+              <option value="json_feed">JSON feed</option>
+            </select>
           </label>
           <label className="text-sm font-medium">
             Feed URL
-            <input name="feedUrl" required type="url" placeholder="https://example.com/events.json" className={`${inputClassName} mt-1.5`} />
+            <input
+              name="feedUrl"
+              required
+              type="url"
+              value={feedUrl}
+              onChange={(event) => setFeedUrl(event.target.value)}
+              readOnly={sourceType === "eventfinda"}
+              placeholder="https://example.com/events.json"
+              className={`${inputClassName} mt-1.5`}
+            />
           </label>
           <label className="text-sm font-medium">
             Every (hours)
-            <input name="scheduleHours" required type="number" min={1} max={168} defaultValue={6} className={`${inputClassName} mt-1.5`} />
+            <input
+              name="scheduleHours"
+              required
+              type="number"
+              min={1}
+              max={168}
+              defaultValue={6}
+              className={`${inputClassName} mt-1.5`}
+            />
           </label>
           <Button type="submit" disabled={creating}>
             {creating ? <LoaderCircle className="animate-spin" /> : <Plus />}
@@ -104,28 +164,49 @@ export function SourceManager({
         {sources.length ? (
           <div className="divide-y">
             {sources.map((source) => (
-              <article key={source.id} className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
+              <article
+                key={source.id}
+                className="flex flex-wrap items-center justify-between gap-4 px-5 py-4"
+              >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <h3 className="font-semibold">{source.name}</h3>
+                    <Badge variant="outline">
+                      {source.sourceType === "eventfinda"
+                        ? "Eventfinda"
+                        : "JSON feed"}
+                    </Badge>
                     <Badge variant={source.enabled ? "default" : "secondary"}>
                       {source.enabled ? "Enabled" : "Paused"}
                     </Badge>
                   </div>
-                  <p className="mt-1 truncate text-sm text-muted-foreground">{source.feedUrl}</p>
+                  <p className="mt-1 truncate text-sm text-muted-foreground">
+                    {source.feedUrl}
+                  </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Every {source.scheduleHours} hours · Last run {source.lastRunAt ? formatDate(source.lastRunAt) : "never"}
+                    Every {source.scheduleHours} hours · Last run{" "}
+                    {source.lastRunAt ? formatDate(source.lastRunAt) : "never"}
                   </p>
                 </div>
-                <Button variant="outline" onClick={() => void run(source.id)} disabled={runningId !== null}>
-                  {runningId === source.id ? <LoaderCircle className="animate-spin" /> : <Play />}
+                <Button
+                  variant="outline"
+                  onClick={() => void run(source.id)}
+                  disabled={runningId !== null}
+                >
+                  {runningId === source.id ? (
+                    <LoaderCircle className="animate-spin" />
+                  ) : (
+                    <Play />
+                  )}
                   {runningId === source.id ? "Importing…" : "Run now"}
                 </Button>
               </article>
             ))}
           </div>
         ) : (
-          <p className="px-5 py-10 text-center text-sm text-muted-foreground">No sources configured.</p>
+          <p className="px-5 py-10 text-center text-sm text-muted-foreground">
+            No sources configured.
+          </p>
         )}
       </section>
 
@@ -136,23 +217,40 @@ export function SourceManager({
         {runs.length ? (
           <div className="divide-y">
             {runs.map((run) => (
-              <article key={run.id} className="grid gap-2 px-5 py-4 text-sm md:grid-cols-[1fr_auto]">
+              <article
+                key={run.id}
+                className="grid gap-2 px-5 py-4 text-sm md:grid-cols-[1fr_auto]"
+              >
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-semibold">{run.sourceName}</span>
-                    <Badge variant={run.status === "failed" ? "destructive" : "secondary"}>{run.status}</Badge>
+                    <Badge
+                      variant={
+                        run.status === "failed" ? "destructive" : "secondary"
+                      }
+                    >
+                      {run.status}
+                    </Badge>
                   </div>
-                  <p className="mt-1 text-muted-foreground">{formatDate(run.startedAt)}</p>
-                  {run.error ? <p className="mt-1 text-destructive">{run.error}</p> : null}
+                  <p className="mt-1 text-muted-foreground">
+                    {formatDate(run.startedAt)}
+                  </p>
+                  {run.error ? (
+                    <p className="mt-1 text-destructive">{run.error}</p>
+                  ) : null}
                 </div>
                 <p className="text-muted-foreground">
-                  {run.createdCount} created · {run.updatedCount} updated · {run.duplicateCount} duplicates · {run.reviewCount} review · {run.failedCount} failed
+                  {run.createdCount} created · {run.updatedCount} updated ·{" "}
+                  {run.duplicateCount} duplicates · {run.reviewCount} review ·{" "}
+                  {run.failedCount} failed
                 </p>
               </article>
             ))}
           </div>
         ) : (
-          <p className="px-5 py-10 text-center text-sm text-muted-foreground">No imports have run.</p>
+          <p className="px-5 py-10 text-center text-sm text-muted-foreground">
+            No imports have run.
+          </p>
         )}
       </section>
     </div>
@@ -160,5 +258,8 @@ export function SourceManager({
 }
 
 function formatDate(value: string): string {
-  return new Intl.DateTimeFormat("en-NZ", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return new Intl.DateTimeFormat("en-NZ", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
 }

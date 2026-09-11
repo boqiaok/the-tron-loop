@@ -89,17 +89,20 @@ async function request<T>(
   return (await response.json()) as T;
 }
 
-export function getAdminActivities({
-  page,
-  limit = 10,
-  status,
-}: AdminActivityQuery, context: AdminRequestContext = {}): Promise<PaginatedActivities> {
+export function getAdminActivities(
+  { page, limit = 10, status }: AdminActivityQuery,
+  context: AdminRequestContext = {},
+): Promise<PaginatedActivities> {
   const params = new URLSearchParams({
     page: String(page),
     limit: String(limit),
   });
   if (status) params.set("status", status);
-  return request<PaginatedActivities>(`/admin/activities?${params}`, {}, context);
+  return request<PaginatedActivities>(
+    `/admin/activities?${params}`,
+    {},
+    context,
+  );
 }
 
 export function getAdminActivity(
@@ -129,6 +132,7 @@ export interface AdminSession {
 export interface ActivitySource {
   id: string;
   name: string;
+  sourceType: "json_feed" | "eventfinda";
   feedUrl: string;
   enabled: boolean;
   scheduleHours: number;
@@ -150,7 +154,10 @@ export interface ImportRun {
   finishedAt: string | null;
 }
 
-export function loginAdmin(email: string, password: string): Promise<AdminSession> {
+export function loginAdmin(
+  email: string,
+  password: string,
+): Promise<AdminSession> {
   return request<AdminSession>("/auth/admin/login", {
     method: "POST",
     body: JSON.stringify({ email, password }),
@@ -190,6 +197,7 @@ export function getAdminImportRuns(
 
 export function createAdminSource(input: {
   name: string;
+  sourceType: ActivitySource["sourceType"];
   feedUrl: string;
   scheduleHours: number;
 }): Promise<ActivitySource> {

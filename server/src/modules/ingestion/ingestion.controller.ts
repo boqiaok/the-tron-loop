@@ -30,7 +30,7 @@ export class IngestionController {
   constructor(private readonly ingestionService: IngestionService) {}
 
   @Post('sources')
-  @ApiOperation({ summary: 'Create a JSON activity feed source' })
+  @ApiOperation({ summary: 'Create an activity import source' })
   @ApiCreatedResponse({ type: SourceResponseDto })
   createSource(@Body() dto: CreateSourceDto): Promise<SourceResponseDto> {
     return this.ingestionService.createSource(dto);

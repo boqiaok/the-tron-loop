@@ -2,6 +2,7 @@ import { PartialType } from '@nestjs/swagger';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
+  IsEnum,
   IsInt,
   IsOptional,
   IsString,
@@ -11,6 +12,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
+import { SourceType } from '../source-type.enum';
 
 export class CreateSourceDto {
   @ApiProperty({ example: 'Hamilton events feed' })
@@ -18,6 +20,10 @@ export class CreateSourceDto {
   @MinLength(1)
   @MaxLength(120)
   name!: string;
+
+  @ApiProperty({ enum: SourceType, default: SourceType.JsonFeed })
+  @IsEnum(SourceType)
+  sourceType!: SourceType;
 
   @ApiProperty({ example: 'https://example.com/events.json' })
   @IsUrl({ protocols: ['http', 'https'], require_protocol: true })
@@ -44,6 +50,9 @@ export class SourceResponseDto {
 
   @ApiProperty()
   name!: string;
+
+  @ApiProperty({ enum: SourceType })
+  sourceType!: SourceType;
 
   @ApiProperty({ format: 'uri' })
   feedUrl!: string;

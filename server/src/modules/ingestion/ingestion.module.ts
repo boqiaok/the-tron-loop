@@ -11,6 +11,8 @@ import { Source } from './entities/source.entity';
 import { IngestionController } from './ingestion.controller';
 import { IngestionScheduler } from './ingestion.scheduler';
 import { IngestionService } from './ingestion.service';
+import { EventfindaAdapter } from './eventfinda.adapter';
+import { JsonFeedAdapter } from './json-feed.adapter';
 
 @Module({
   imports: [
@@ -26,6 +28,11 @@ import { IngestionService } from './ingestion.service';
     ]),
   ],
   controllers: [IngestionController],
-  providers: [IngestionService, IngestionScheduler],
+  providers: [
+    IngestionService,
+    IngestionScheduler,
+    EventfindaAdapter,
+    JsonFeedAdapter,
+  ],
 })
 export class IngestionModule {}

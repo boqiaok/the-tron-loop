@@ -21,6 +21,8 @@ services:
     build:
       context: .
       dockerfile: server/Dockerfile
+    env_file:
+      - ./server/.env
     container_name: the-tron-loop-server
     restart: unless-stopped
     environment:
