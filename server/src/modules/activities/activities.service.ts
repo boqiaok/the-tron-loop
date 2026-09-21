@@ -35,6 +35,9 @@ import { Activity } from './entities/activity.entity';
 import { Tag } from './entities/tag.entity';
 import { Venue } from './entities/venue.entity';
 import { ActivityCostType } from './enums/activity-cost-type.enum';
+import { ActivityEnvironment } from './enums/activity-environment.enum';
+import { ActivityScheduleMode } from './enums/activity-schedule-mode.enum';
+import { DurationSource } from './enums/duration-source.enum';
 import { ActivityStatus } from './enums/activity-status.enum';
 
 const ACTIVITY_RELATIONS = {
@@ -53,6 +56,7 @@ export class ActivitiesService {
   ) {}
 
   async create(dto: CreateActivityDto): Promise<ActivityResponseDto> {
+    this.validateScheduling(dto);
     const slug = this.buildSlug(dto.slug ?? dto.title);
     const dates = this.prepareDates(dto.dates);
 
@@ -67,6 +71,10 @@ export class ActivitiesService {
           summary: dto.summary?.trim() || null,
           description: dto.description.trim(),
           imageUrl: dto.imageUrl ?? null,
+          environment: dto.environment ?? ActivityEnvironment.Unknown,
+          scheduleMode: dto.scheduleMode ?? ActivityScheduleMode.Fixed,
+          visitMinutes: dto.visitMinutes ?? null,
+          durationSource: dto.durationSource ?? DurationSource.Source,
           costType: dto.costType ?? ActivityCostType.Unknown,
           costAmountFrom: this.toDatabaseAmount(dto.costAmountFrom),
           currency: dto.currency ?? 'NZD',
@@ -108,6 +116,14 @@ export class ActivitiesService {
     query: ActivityPaginationQueryDto,
   ): Promise<PaginatedActivitiesResponseDto> {
     const { from, to } = this.parsePublicRange(query);
+    if (
+      query.sortBy === 'distance' &&
+      (query.latitude === undefined || query.longitude === undefined)
+    ) {
+      throw new BadRequestException(
+        'Distance sorting requires latitude and longitude',
+      );
+    }
 
     const baseQuery = this.createPublicQuery(query, from, to);
     const countResult = await baseQuery
@@ -115,18 +131,37 @@ export class ActivitiesService {
       .select('COUNT(DISTINCT activity.id)', 'total')
       .getRawOne<{ total: string }>();
     const total = Number(countResult?.total ?? 0);
-    const idRows = await baseQuery
+    let idQuery = baseQuery
       .select('activity.id', 'activityId')
       .addSelect('MIN(matchingDate.startsAt)', 'firstMatchingStart')
-      .groupBy('activity.id')
-      .orderBy(
+      .groupBy('activity.id');
+    if (query.sortBy === 'distance') {
+      const expression = `CASE WHEN sortVenue.latitude IS NULL OR sortVenue.longitude IS NULL THEN NULL ELSE 6371 * acos(LEAST(1, cos(radians(:latitude)) * cos(radians(sortVenue.latitude)) * cos(radians(sortVenue.longitude) - radians(:longitude)) + sin(radians(:latitude)) * sin(radians(sortVenue.latitude)))) END`;
+      idQuery = idQuery
+        .addSelect(expression, 'distanceKm')
+        .addGroupBy('sortVenue.latitude')
+        .addGroupBy('sortVenue.longitude')
+        .setParameters({
+          latitude: query.latitude,
+          longitude: query.longitude,
+        })
+        .orderBy(
+          'CASE WHEN sortVenue.latitude IS NULL OR sortVenue.longitude IS NULL THEN 1 ELSE 0 END',
+          'ASC',
+        )
+        .addOrderBy(expression, 'ASC')
+        .addOrderBy('MIN(matchingDate.startsAt)', 'ASC');
+    } else {
+      idQuery = idQuery.orderBy(
         'MIN(matchingDate.startsAt)',
         query.sort === 'desc' ? 'DESC' : 'ASC',
-      )
+      );
+    }
+    const idRows = await idQuery
       .addOrderBy('activity.id', 'ASC')
       .offset((query.page - 1) * query.limit)
       .limit(query.limit)
-      .getRawMany<{ activityId: string }>();
+      .getRawMany<{ activityId: string; distanceKm?: string | null }>();
     const activityIds = idRows.map((row) => row.activityId);
 
     if (activityIds.length === 0) {
@@ -151,7 +186,19 @@ export class ActivitiesService {
       items: activityIds
         .map((id) => activityById.get(id))
         .filter((activity): activity is Activity => activity !== undefined)
-        .map((activity) => toActivityResponse(activity, { from, to })),
+        .map((activity) => {
+          const response = toActivityResponse(activity, { from, to });
+          const distance = idRows.find(
+            ({ activityId }) => activityId === activity.id,
+          )?.distanceKm;
+          return {
+            ...response,
+            distanceKm:
+              distance == null
+                ? undefined
+                : Math.round(Number(distance) * 10) / 10,
+          };
+        }),
       page: query.page,
       limit: query.limit,
       total,
@@ -247,6 +294,7 @@ export class ActivitiesService {
     id: string,
     dto: UpdateActivityDto,
   ): Promise<ActivityResponseDto> {
+    this.validateScheduling(dto);
     const dates = dto.dates ? this.prepareDates(dto.dates) : undefined;
     const slug = dto.slug ? this.buildSlug(dto.slug) : undefined;
 
@@ -265,6 +313,14 @@ export class ActivitiesService {
 
         await this.validateReferences(manager, dto.venueId, dto.tagIds);
         this.applyUpdates(activity, dto, slug);
+        if (
+          activity.scheduleMode === ActivityScheduleMode.Window &&
+          activity.visitMinutes == null
+        ) {
+          throw new BadRequestException(
+            'Window activities require a recommended visit duration',
+          );
+        }
         await activitiesRepository.save(activity);
 
         if (dates) {
@@ -388,6 +444,10 @@ export class ActivitiesService {
             : ActivityStatus.Published,
       });
 
+    if (query.sortBy === 'distance') {
+      queryBuilder.leftJoin('activity.venue', 'sortVenue');
+    }
+
     queryBuilder
       .andWhere('matchingDate.startsAt >= :from', { from })
       .andWhere('matchingDate.startsAt < :to', { to });
@@ -462,6 +522,17 @@ export class ActivitiesService {
     }
 
     return slug;
+  }
+
+  private validateScheduling(dto: Partial<CreateActivityDto>): void {
+    if (
+      dto.scheduleMode === ActivityScheduleMode.Window &&
+      dto.visitMinutes == null
+    ) {
+      throw new BadRequestException(
+        'Window activities require a recommended visit duration',
+      );
+    }
   }
 
   private prepareDates(
@@ -637,6 +708,13 @@ export class ActivitiesService {
     if (dto.description !== undefined)
       activity.description = dto.description.trim();
     if (dto.imageUrl !== undefined) activity.imageUrl = dto.imageUrl;
+    if (dto.environment !== undefined) activity.environment = dto.environment;
+    if (dto.scheduleMode !== undefined)
+      activity.scheduleMode = dto.scheduleMode;
+    if (dto.visitMinutes !== undefined)
+      activity.visitMinutes = dto.visitMinutes;
+    if (dto.durationSource !== undefined)
+      activity.durationSource = dto.durationSource;
     if (dto.costType !== undefined) activity.costType = dto.costType;
     if (dto.costAmountFrom !== undefined)
       activity.costAmountFrom = this.toDatabaseAmount(dto.costAmountFrom);

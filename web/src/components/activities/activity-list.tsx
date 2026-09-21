@@ -4,7 +4,13 @@ import { ActivityCard } from "@/components/activities/activity-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { Activity } from "@/types/activity";
 
-export function ActivityList({ activities }: { activities: Activity[] }) {
+export function ActivityList({
+  activities,
+  showDistance = false,
+}: {
+  activities: Activity[];
+  showDistance?: boolean;
+}) {
   if (activities.length === 0) {
     return (
       <Alert className="py-6">
@@ -20,7 +26,11 @@ export function ActivityList({ activities }: { activities: Activity[] }) {
   return (
     <div className="grid gap-3">
       {activities.map((activity) => (
-        <ActivityCard key={activity.id} activity={activity} />
+        <ActivityCard
+          key={activity.id}
+          activity={activity}
+          showDistance={showDistance}
+        />
       ))}
     </div>
   );

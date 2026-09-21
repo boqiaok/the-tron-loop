@@ -64,6 +64,10 @@ export function toActivityResponse(
     summary: activity.summary,
     description: activity.description,
     imageUrl: activity.imageUrl,
+    environment: activity.environment,
+    scheduleMode: activity.scheduleMode,
+    visitMinutes: activity.visitMinutes,
+    durationSource: activity.durationSource,
     costType: activity.costType,
     costAmountFrom:
       activity.costAmountFrom === null ? null : Number(activity.costAmountFrom),

@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Search,
+  LocateFixed,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -41,12 +42,16 @@ export function ActivityExplorer({
   const [filters, setFilters] = useState(initialFilters);
   const [error, setError] = useState<string>();
   const [isLoading, setIsLoading] = useState(false);
+  const [locating, setLocating] = useState(false);
   const debouncedQuery = useDebouncedValue(filters.q ?? "", 300);
   const isInitialRender = useRef(true);
   const requestFilters = useMemo<ActivityFilters>(
     () => ({
       q: debouncedQuery || undefined,
       sort: filters.sort,
+      sortBy: filters.sortBy,
+      latitude: filters.latitude,
+      longitude: filters.longitude,
       status: filters.status,
       costType: filters.costType,
       tag: filters.tag,
@@ -58,6 +63,9 @@ export function ActivityExplorer({
       filters.costType,
       filters.page,
       filters.sort,
+      filters.sortBy,
+      filters.latitude,
+      filters.longitude,
       filters.status,
       filters.suburb,
       filters.tag,
@@ -72,6 +80,7 @@ export function ActivityExplorer({
 
     const controller = new AbortController();
     setIsLoading(true);
+    setError(undefined);
     setError(undefined);
     updateBrowserUrl(pathname, requestFilters);
     void getActivities(range, requestFilters, controller.signal)
@@ -107,6 +116,51 @@ export function ActivityExplorer({
 
   function changePage(page: number) {
     setFilters((current) => ({ ...current, page }));
+  }
+
+  function sortByDistance() {
+    if (!navigator.geolocation) {
+      setError("This browser cannot provide your location.");
+      return;
+    }
+    setLocating(true);
+    setError(undefined);
+    let settled = false;
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(fallbackTimeout);
+      callback();
+      setLocating(false);
+    };
+    const fallbackTimeout = window.setTimeout(() => {
+      finish(() =>
+        setError(
+          "Location request timed out. Check your browser location permission and try again.",
+        ),
+      );
+    }, 10_000);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        finish(() =>
+          setFilters((current) => ({
+            ...current,
+            sortBy: "distance",
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            page: 1,
+          })),
+        );
+      },
+      () => {
+        finish(() =>
+          setError(
+            "Location access was unavailable. Check your browser permission and try again.",
+          ),
+        );
+      },
+      { enableHighAccuracy: false, timeout: 8_000, maximumAge: 300_000 },
+    );
   }
 
   return (
@@ -166,23 +220,44 @@ export function ActivityExplorer({
           </FilterChip>
         </div>
 
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full justify-between lg:w-auto"
-          onClick={() =>
-            setFilters((current) => ({
-              ...current,
-              sort: current.sort === "asc" ? "desc" : "asc",
-              page: 1,
-            }))
-          }
-          aria-label={`Sort by date and time ${filters.sort === "asc" ? "descending" : "ascending"}`}
-        >
-          Date &amp; time
-          {filters.sort === "asc" ? <ArrowDown /> : <ArrowUp />}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant={filters.sortBy === "date" ? "default" : "outline"}
+            className="flex-1 justify-between lg:w-auto"
+            onClick={() =>
+              setFilters((current) => ({
+                ...current,
+                sortBy: "date",
+                sort:
+                  current.sortBy === "date" && current.sort === "asc"
+                    ? "desc"
+                    : "asc",
+                page: 1,
+              }))
+            }
+          >
+            Date &amp; time
+            {filters.sort === "asc" ? <ArrowDown /> : <ArrowUp />}
+          </Button>
+          <Button
+            type="button"
+            variant={filters.sortBy === "distance" ? "default" : "outline"}
+            onClick={sortByDistance}
+            disabled={isLoading || locating}
+          >
+            <LocateFixed /> {locating ? "Locating…" : "Distance from me"}
+          </Button>
+        </div>
       </section>
+
+      {filters.sortBy === "distance" ? (
+        <div className="flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-primary">
+          <LocateFixed className="size-4" />
+          Sorted by distance from your current location. Distances are
+          estimates.
+        </div>
+      ) : null}
 
       <aside className="flex min-h-10 items-center gap-3 rounded-md border bg-secondary/60 px-3 py-2 text-xs text-muted-foreground">
         <span className="grid size-5 shrink-0 place-items-center rounded-full border border-foreground text-[0.7rem] font-semibold text-foreground">
@@ -219,7 +294,10 @@ export function ActivityExplorer({
               isLoading && "opacity-45",
             )}
           >
-            <ActivityList activities={activities.items} />
+            <ActivityList
+              activities={activities.items}
+              showDistance={filters.sortBy === "distance"}
+            />
           </div>
         )}
       </section>

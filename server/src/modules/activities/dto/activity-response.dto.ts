@@ -1,5 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { ActivityCostType } from '../enums/activity-cost-type.enum';
+import { ActivityEnvironment } from '../enums/activity-environment.enum';
+import { ActivityScheduleMode } from '../enums/activity-schedule-mode.enum';
+import { DurationSource } from '../enums/duration-source.enum';
 import { ActivityStatus } from '../enums/activity-status.enum';
 
 export class VenueResponseDto {
@@ -75,6 +78,18 @@ export class ActivityResponseDto {
   @ApiProperty({ type: String, format: 'uri', nullable: true })
   imageUrl!: string | null;
 
+  @ApiProperty({ enum: ActivityEnvironment })
+  environment!: ActivityEnvironment;
+
+  @ApiProperty({ enum: ActivityScheduleMode })
+  scheduleMode!: ActivityScheduleMode;
+
+  @ApiProperty({ type: Number, nullable: true })
+  visitMinutes!: number | null;
+
+  @ApiProperty({ enum: DurationSource })
+  durationSource!: DurationSource;
+
   @ApiProperty({ enum: ActivityCostType })
   costType!: ActivityCostType;
 
@@ -113,6 +128,9 @@ export class ActivityResponseDto {
 
   @ApiProperty({ format: 'date-time' })
   updatedAt!: string;
+
+  @ApiProperty({ type: Number, nullable: true, required: false })
+  distanceKm?: number | null;
 }
 
 export class PaginatedActivitiesResponseDto {

@@ -9,13 +9,20 @@ import type { Activity } from "@/types/activity";
 export function ActivityCard({
   activity,
   scheduleLabels,
+  showDistance = false,
 }: {
   activity: Activity;
   scheduleLabels?: string[];
+  showDistance?: boolean;
 }) {
   const isCancelled = activity.status === "cancelled";
   const primaryTag = activity.tags[0];
   const imageStyle = getActivityImageStyle(activity);
+  const timeLabels =
+    scheduleLabels ??
+    activity.dates.map((date) =>
+      formatActivityDate(date.startsAt, date.endsAt, date.isAllDay),
+    );
 
   return (
     <article
@@ -81,19 +88,22 @@ export function ActivityCard({
         >
           <div className="flex items-start gap-1.5">
             <CalendarDays className="mt-px size-3.5 shrink-0 text-primary" />
-            <ul className="flex flex-wrap gap-x-3 gap-y-1">
-              {scheduleLabels
-                ? scheduleLabels.map((label) => <li key={label}>{label}</li>)
-                : activity.dates.map((date) => (
-                    <li key={date.id}>
-                      {formatActivityDate(
-                        date.startsAt,
-                        date.endsAt,
-                        date.isAllDay,
-                      )}
-                    </li>
-                  ))}
-            </ul>
+            <div>
+              <p>{timeLabels[0]}</p>
+              {timeLabels.length > 1 ? (
+                <details className="group mt-1">
+                  <summary className="cursor-pointer list-none font-semibold text-[var(--link)] hover:underline">
+                    +{timeLabels.length - 1} more{" "}
+                    {timeLabels.length === 2 ? "time" : "times"}
+                  </summary>
+                  <ul className="mt-1 grid gap-1 border-l pl-2 text-muted-foreground">
+                    {timeLabels.slice(1).map((label, index) => (
+                      <li key={`${label}-${index}`}>{label}</li>
+                    ))}
+                  </ul>
+                </details>
+              ) : null}
+            </div>
           </div>
 
           {activity.venue && (
@@ -102,6 +112,15 @@ export function ActivityCard({
               {formatVenue(activity)}
             </span>
           )}
+
+          {activity.distanceKm != null && (
+            <span className="inline-flex items-start gap-1.5 font-medium text-foreground">
+              {activity.distanceKm.toFixed(1)} km away
+            </span>
+          )}
+          {showDistance && activity.distanceKm == null ? (
+            <span className="text-muted-foreground">Distance unavailable</span>
+          ) : null}
 
           <span className="inline-flex items-start gap-1.5">
             <Ticket className="mt-px size-3.5 shrink-0 text-primary" />
@@ -165,7 +184,7 @@ function formatVenue(activity: Activity): string {
 
   if (!venue) return "";
 
-  return [venue.name, venue.suburb].filter(Boolean).join(", ");
+  return [venue.name, venue.suburb ?? venue.address].filter(Boolean).join(", ");
 }
 
 function formatCost(activity: Activity): string {

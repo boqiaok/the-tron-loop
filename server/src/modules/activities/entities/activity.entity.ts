@@ -11,7 +11,10 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { ActivityCostType } from '../enums/activity-cost-type.enum';
+import { ActivityEnvironment } from '../enums/activity-environment.enum';
 import { ActivityStatus } from '../enums/activity-status.enum';
+import { ActivityScheduleMode } from '../enums/activity-schedule-mode.enum';
+import { DurationSource } from '../enums/duration-source.enum';
 import { ActivityDate } from './activity-date.entity';
 import { ActivityTag } from './activity-tag.entity';
 import { Venue } from './venue.entity';
@@ -31,6 +34,14 @@ import { Source } from '../../ingestion/entities/source.entity';
   'CHK_activities_cost_amount_non_negative',
   '"cost_amount_from" IS NULL OR "cost_amount_from" >= 0',
 )
+@Check(
+  'CHK_activities_visit_minutes_positive',
+  '"visit_minutes" IS NULL OR "visit_minutes" BETWEEN 15 AND 720',
+)
+@Check(
+  'CHK_activities_window_has_visit_minutes',
+  '"schedule_mode" <> \'window\' OR "visit_minutes" IS NOT NULL',
+)
 export class Activity {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -49,6 +60,35 @@ export class Activity {
 
   @Column({ name: 'image_url', type: 'text', nullable: true })
   imageUrl!: string | null;
+
+  @Column({
+    type: 'enum',
+    enum: ActivityEnvironment,
+    enumName: 'activity_environment',
+    default: ActivityEnvironment.Unknown,
+  })
+  environment!: ActivityEnvironment;
+
+  @Column({
+    name: 'schedule_mode',
+    type: 'enum',
+    enum: ActivityScheduleMode,
+    enumName: 'activity_schedule_mode',
+    default: ActivityScheduleMode.Fixed,
+  })
+  scheduleMode!: ActivityScheduleMode;
+
+  @Column({ name: 'visit_minutes', type: 'smallint', nullable: true })
+  visitMinutes!: number | null;
+
+  @Column({
+    name: 'duration_source',
+    type: 'enum',
+    enum: DurationSource,
+    enumName: 'activity_duration_source',
+    default: DurationSource.Source,
+  })
+  durationSource!: DurationSource;
 
   @Column({
     name: 'cost_type',

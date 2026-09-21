@@ -5,6 +5,7 @@ import {
   IsIn,
   IsInt,
   IsISO8601,
+  IsNumber,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -79,6 +80,27 @@ export class ActivityPaginationQueryDto extends ActivityRangeQueryDto {
   @IsOptional()
   @IsIn(['asc', 'desc'])
   sort = 'asc' as 'asc' | 'desc';
+
+  @ApiPropertyOptional({ enum: ['date', 'distance'], default: 'date' })
+  @IsOptional()
+  @IsIn(['date', 'distance'])
+  sortBy = 'date' as 'date' | 'distance';
+
+  @ApiPropertyOptional({ minimum: -90, maximum: 90 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  latitude?: number;
+
+  @ApiPropertyOptional({ minimum: -180, maximum: 180 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  longitude?: number;
 
   @ApiPropertyOptional({
     enum: ['cancelled'],

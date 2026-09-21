@@ -1,12 +1,15 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import * as Joi from 'joi';
 import { ActivitiesModule } from './modules/activities/activities.module';
 import { HealthModule } from './modules/health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { MediaModule } from './modules/media/media.module';
 import { IngestionModule } from './modules/ingestion/ingestion.module';
+import { DiscoveryModule } from './modules/discovery/discovery.module';
 
 @Module({
   imports: [
@@ -29,6 +32,11 @@ import { IngestionModule } from './modules/ingestion/ingestion.module';
         IMPORTS_ENABLED: Joi.boolean().default(false),
         EVENTFINDA_USERNAME: Joi.string().optional(),
         EVENTFINDA_PASSWORD: Joi.string().optional(),
+        GEMINI_API_KEY: Joi.string().trim().empty('').optional(),
+        GEMINI_MODEL: Joi.string()
+          .trim()
+          .empty('')
+          .default('gemini-3.5-flash-lite'),
       }),
       validationOptions: {
         allowUnknown: true,
@@ -55,11 +63,14 @@ import { IngestionModule } from './modules/ingestion/ingestion.module';
             : ['error'],
       }),
     }),
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     AuthModule,
     ActivitiesModule,
     MediaModule,
     IngestionModule,
+    DiscoveryModule,
     HealthModule,
   ],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

@@ -27,6 +27,9 @@ export function SiteHeader() {
           aria-label="Main navigation"
           className="hidden items-stretch gap-5 self-stretch md:flex lg:gap-8"
         >
+          <HeaderLink href="/discover" active={pathname === "/discover"}>
+            Plan My Day
+          </HeaderLink>
           <HeaderLink
             href="/this-week"
             active={pathname === "/this-week"}
@@ -66,6 +69,9 @@ export function SiteHeader() {
           aria-label="Mobile navigation"
           className="absolute inset-x-0 top-full grid border-b bg-background px-5 py-3 shadow-md md:hidden"
         >
+          <MobileLink href="/discover" active={pathname === "/discover"} onClick={() => setMenuOpen(false)}>
+            Plan my day
+          </MobileLink>
           <MobileLink
             href="/this-week"
             active={pathname === "/this-week"}

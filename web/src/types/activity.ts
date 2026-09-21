@@ -1,5 +1,9 @@
 export type ActivityCostType = "free" | "paid" | "unknown";
 export type ActivityStatus = "draft" | "published" | "cancelled";
+export type ActivityEnvironment = "indoor" | "outdoor" | "mixed" | "unknown";
+export type ActivityScheduleMode = "fixed" | "window";
+export type DurationSource =
+  "source" | "parsed" | "category_default" | "manual";
 
 export interface Venue {
   id: string;
@@ -33,6 +37,10 @@ export interface Activity {
   summary: string | null;
   description: string;
   imageUrl: string | null;
+  environment: ActivityEnvironment;
+  scheduleMode: ActivityScheduleMode;
+  visitMinutes: number | null;
+  durationSource: DurationSource;
   costType: ActivityCostType;
   costAmountFrom: number | null;
   currency: string;
@@ -46,6 +54,7 @@ export interface Activity {
   tags: ActivityTag[];
   createdAt: string;
   updatedAt: string;
+  distanceKm?: number | null;
 }
 
 export interface PaginatedActivities {
@@ -65,6 +74,9 @@ export interface ActivityFilterOptions {
 export interface ActivityFilters {
   q?: string;
   sort: "asc" | "desc";
+  sortBy: "date" | "distance";
+  latitude?: number;
+  longitude?: number;
   status?: "cancelled";
   costType?: ActivityCostType;
   tag?: string;

@@ -299,6 +299,8 @@ describe('Application (e2e)', () => {
           name: `E2E Venue ${uniquePart}`,
           address: '1 Victoria Street',
           suburb: 'Hamilton East',
+          latitude: -37.7909,
+          longitude: 175.2845,
         })
         .expect(201);
       const venue = venueResponse.body as { id: string; city: string };
@@ -392,6 +394,7 @@ describe('Application (e2e)', () => {
           summary: 'Initial summary',
           description: 'Created by the activity lifecycle E2E test',
           imageUrl: '/images/activities/event-triptych.png',
+          environment: 'indoor',
           costType: 'free',
           venueId,
           tagIds: [tagId],
@@ -412,6 +415,7 @@ describe('Application (e2e)', () => {
         slug: string;
         status: string;
         imageUrl: string;
+        environment: string;
         venue: { id: string };
         tags: Array<{ id: string }>;
         dates: Array<{ timezone: string }>;
@@ -421,6 +425,7 @@ describe('Application (e2e)', () => {
       activityIds.push(activityId);
       expect(activity.status).toBe('draft');
       expect(activity.imageUrl).toBe('/images/activities/event-triptych.png');
+      expect(activity.environment).toBe('indoor');
       expect(activity.venue.id).toBe(venueId);
       expect(activity.tags).toEqual([expect.objectContaining({ id: tagId })]);
       expect(activity.dates[0].timezone).toBe('Pacific/Auckland');
@@ -568,6 +573,36 @@ describe('Application (e2e)', () => {
       expect(page.items[0].dates[0].startsAt).toBe('2026-08-14T22:00:00.000Z');
     });
 
+    it('sorts by distance before pagination and places missing coordinates last', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/activities')
+        .query({
+          ...publicRange,
+          sortBy: 'distance',
+          latitude: -37.791,
+          longitude: 175.284,
+        })
+        .expect(200);
+      const page = response.body as {
+        items: Array<{ id: string; distanceKm?: number }>;
+      };
+      const first = page.items.findIndex(({ id }) => id === activityId);
+      const withoutCoordinates = page.items.findIndex(
+        ({ id }) => id === laterActivityId,
+      );
+      expect(first).toBeGreaterThanOrEqual(0);
+      expect(withoutCoordinates).toBeGreaterThan(first);
+      expect(page.items[first].distanceKm).toBeGreaterThanOrEqual(0);
+      expect(page.items[withoutCoordinates].distanceKm).toBeUndefined();
+    });
+
+    it('requires coordinates for distance sorting', () => {
+      return request(app.getHttpServer())
+        .get('/api/v1/activities')
+        .query({ ...publicRange, sortBy: 'distance' })
+        .expect(400);
+    });
+
     it('returns filter options used by public activities', async () => {
       const response = await request(app.getHttpServer())
         .get('/api/v1/activities/filters')
@@ -618,6 +653,77 @@ describe('Application (e2e)', () => {
           expect.objectContaining({ id: laterActivityId }),
         ]),
       );
+    });
+
+    it('returns explainable recommendations for a confirmed intent', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/discovery/recommendations')
+        .send({
+          intent: {
+            date: '2026-08-14',
+            availableFrom: '17:00',
+            availableTo: '22:00',
+            timezone: 'Pacific/Auckland',
+            required: { environment: 'indoor', freeOnly: true },
+            preferred: { free: true, interests: [], suburb: 'Hamilton East' },
+            targetActivityCount: 2,
+            travelMode: 'driving',
+          },
+        })
+        .expect(200);
+      const body = response.body as {
+        items: Array<{
+          activity: { id: string };
+          score: number;
+          reasons: Array<{ code: string }>;
+        }>;
+      };
+
+      const recommended = body.items.find(
+        (item) => item.activity.id === activityId,
+      );
+      expect(recommended?.score).toBe(100);
+      expect(recommended?.reasons.map(({ code }) => code)).toEqual(
+        expect.arrayContaining(['FREE', 'PREFERRED_SUBURB']),
+      );
+    });
+
+    it('keeps useful local search conditions when Gemini is not configured', async () => {
+      const config = app.get(ConfigService);
+      const originalKey = config.get<string>('GEMINI_API_KEY');
+      config.set('GEMINI_API_KEY', '');
+      try {
+        const response = await request(app.getHttpServer())
+          .post('/api/v1/discovery/parse')
+          .send({
+            text: 'Free family activities on Saturday afternoon',
+            referenceTime: '2026-08-10T10:00:00+12:00',
+            timezone: 'Pacific/Auckland',
+          })
+          .expect(200);
+
+        const body = response.body as {
+          intent: Record<string, unknown> | null;
+          source: string;
+          manualEntryRequired: boolean;
+        };
+        expect(body.intent).toEqual(
+          expect.objectContaining({
+            date: '2026-08-15',
+            availableFrom: '12:00',
+            availableTo: '17:00',
+            required: {
+              familyFriendly: true,
+              freeOnly: true,
+            },
+            preferred: { interests: [] },
+          }),
+        );
+        expect(body.source).toBe('manual');
+        expect(body.manualEntryRequired).toBe(false);
+      } finally {
+        config.set('GEMINI_API_KEY', originalKey);
+      }
     });
 
     it('rejects an invalid public date range', () => {

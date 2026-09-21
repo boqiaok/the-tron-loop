@@ -127,6 +127,16 @@ function mapEventfindaActivity(raw: Record<string, unknown>): ImportedActivity {
 
   const description = readOptionalString(raw, 'description') ?? title;
   const location = isRecord(raw.location) ? raw.location : null;
+  const point = location && isRecord(location.point) ? location.point : null;
+  const latitude = location
+    ? readCoordinate(location.latitude ?? point?.lat, -90, 90)
+    : null;
+  const longitude = location
+    ? readCoordinate(location.longitude ?? point?.lng, -180, 180)
+    : null;
+  const coordinates = isHamiltonRegion(latitude, longitude)
+    ? { latitude, longitude }
+    : { latitude: null, longitude: null };
   const category = isRecord(raw.category) ? raw.category : null;
   const prices = readPrices(raw.ticket_types);
   const isFree = raw.is_free === true;
@@ -144,6 +154,7 @@ function mapEventfindaActivity(raw: Record<string, unknown>): ImportedActivity {
           name: readString(location, 'name', 200),
           address: readOptionalString(raw, 'address'),
           suburb: null,
+          ...coordinates,
         }
       : null,
     tags: category ? [readString(category, 'name', 120)] : [],
@@ -296,6 +307,32 @@ function readNumber(record: Record<string, unknown>, key: string): number {
     throw new BadRequestException(`Eventfinda ${key} is invalid`);
   }
   return value;
+}
+
+function readCoordinate(
+  value: unknown,
+  minimum: number,
+  maximum: number,
+): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= minimum && parsed <= maximum
+    ? parsed
+    : null;
+}
+
+function isHamiltonRegion(
+  latitude: number | null,
+  longitude: number | null,
+): latitude is number {
+  return (
+    latitude !== null &&
+    longitude !== null &&
+    latitude >= -38.2 &&
+    latitude <= -37.3 &&
+    longitude >= 174.8 &&
+    longitude <= 175.8
+  );
 }
 
 function readOptionalUrl(

@@ -13,6 +13,8 @@ import { Activity } from '../activities/entities/activity.entity';
 import { Tag } from '../activities/entities/tag.entity';
 import { Venue } from '../activities/entities/venue.entity';
 import { ActivityStatus } from '../activities/enums/activity-status.enum';
+import { ActivityEnvironment } from '../activities/enums/activity-environment.enum';
+import { inferActivityScheduling } from '../activities/activity-duration';
 import {
   CreateSourceDto,
   ImportRunResponseDto,
@@ -206,11 +208,20 @@ export class IngestionService {
       } else {
         const venueId = await this.resolveVenue(item.venue);
         const tagIds = await this.resolveTags(item.tags);
+        const inferredScheduling = inferActivityScheduling(item);
         const input = {
           title: item.title,
           summary: item.summary,
           description: item.description,
           imageUrl: item.imageUrl,
+          environment: item.environment ?? ActivityEnvironment.Unknown,
+          scheduleMode: item.scheduleMode ?? inferredScheduling.scheduleMode,
+          visitMinutes:
+            item.visitMinutes === undefined
+              ? inferredScheduling.visitMinutes
+              : item.visitMinutes,
+          durationSource:
+            item.durationSource ?? inferredScheduling.durationSource,
           sourceUrl: item.sourceUrl ?? source.feedUrl,
           costType: item.costType,
           costAmountFrom: item.costAmountFrom,
@@ -286,10 +297,17 @@ export class IngestionService {
           address: venue.address,
           suburb: venue.suburb,
           city: 'Hamilton',
-          latitude: null,
-          longitude: null,
+          latitude: venue.latitude ?? null,
+          longitude: venue.longitude ?? null,
         }),
       );
+    } else if (
+      (existing.latitude === null && venue.latitude != null) ||
+      (existing.longitude === null && venue.longitude != null)
+    ) {
+      existing.latitude ??= venue.latitude ?? null;
+      existing.longitude ??= venue.longitude ?? null;
+      existing = await this.venues.save(existing);
     }
     return existing.id;
   }

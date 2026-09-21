@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiCreatedResponse,
   ApiOkResponse,
@@ -8,6 +16,7 @@ import {
 import { toVenueResponse } from './activity.mapper';
 import { VenueResponseDto } from './dto/activity-response.dto';
 import { CreateVenueDto } from './dto/create-venue.dto';
+import { UpdateVenueDto } from './dto/update-venue.dto';
 import { VenuesService } from './venues.service';
 import { AdminSessionGuard } from '../auth/admin-session.guard';
 
@@ -29,5 +38,15 @@ export class VenuesController {
   @ApiOkResponse({ type: [VenueResponseDto] })
   async findAll(): Promise<VenueResponseDto[]> {
     return (await this.venuesService.findAll()).map(toVenueResponse);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update a venue' })
+  @ApiOkResponse({ type: VenueResponseDto })
+  async update(
+    @Param('id') id: string,
+    @Body() dto: UpdateVenueDto,
+  ): Promise<VenueResponseDto> {
+    return toVenueResponse(await this.venuesService.update(id, dto));
   }
 }

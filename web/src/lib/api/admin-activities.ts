@@ -2,6 +2,9 @@ import { API_BASE_URL } from "@/lib/api/config";
 import type {
   Activity,
   ActivityCostType,
+  ActivityEnvironment,
+  ActivityScheduleMode,
+  DurationSource,
   ActivityStatus,
   ActivityTag,
   PaginatedActivities,
@@ -21,6 +24,10 @@ export interface ActivityInput {
   summary: string | null;
   description: string;
   imageUrl: string | null;
+  environment: ActivityEnvironment;
+  scheduleMode: ActivityScheduleMode;
+  visitMinutes: number | null;
+  durationSource: DurationSource;
   costType: ActivityCostType;
   costAmountFrom: number | null;
   currency: string;
@@ -116,6 +123,16 @@ export function getAdminVenues(
   context: AdminRequestContext = {},
 ): Promise<Venue[]> {
   return request<Venue[]>("/admin/venues", {}, context);
+}
+
+export function updateAdminVenue(
+  id: string,
+  input: { latitude: number | null; longitude: number | null },
+): Promise<Venue> {
+  return request<Venue>(`/admin/venues/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
 }
 
 export function getAdminTags(

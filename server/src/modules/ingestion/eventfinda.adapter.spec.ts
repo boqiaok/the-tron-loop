@@ -27,7 +27,11 @@ describe('EventfindaAdapter', () => {
               is_cancelled: false,
               timezone: 'Pacific/Auckland',
               address: '1 Victoria Street, Hamilton',
-              location: { id: 10, name: 'Example Venue' },
+              location: {
+                id: 10,
+                name: 'Example Venue',
+                point: { lat: -37.7879, lng: 175.315 },
+              },
               category: { id: 20, name: 'Markets and Fairs' },
               sessions: {
                 '@attributes': { count: 6 },
@@ -149,6 +153,37 @@ describe('EventfindaAdapter', () => {
         endsAt: '2026-10-01T03:00:00.000Z',
       }),
     ]);
+    expect(activity.venue).toEqual(
+      expect.objectContaining({
+        latitude: -37.7879,
+        longitude: 175.315,
+      }),
+    );
+  });
+
+  it('does not save a same-name city coordinate outside the Hamilton region', () => {
+    jest
+      .spyOn(Date, 'now')
+      .mockReturnValue(new Date('2026-09-20T00:00:00.000Z').getTime());
+    const adapter = new EventfindaAdapter(configService({}));
+    const activity = adapter.parse({
+      id: 456,
+      name: 'Hamilton City Centre Event',
+      description: 'Local listing with an incorrect overseas coordinate',
+      datetime_start: '2026-09-22 12:00:00',
+      datetime_end: '2026-09-22 13:00:00',
+      timezone: 'Pacific/Auckland',
+      is_cancelled: false,
+      location: {
+        id: 11,
+        name: 'Hamilton City Centre',
+        point: { lat: 43.2589, lng: -79.8689 },
+      },
+    });
+
+    expect(activity.venue).toEqual(
+      expect.objectContaining({ latitude: null, longitude: null }),
+    );
   });
 
   it('requires credentials before making a request', async () => {

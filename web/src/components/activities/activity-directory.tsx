@@ -10,7 +10,11 @@ import Link from "next/link";
 import { ActivityExplorer } from "@/components/activities/activity-explorer";
 import { buttonVariants } from "@/components/ui/button";
 import { getActivities, getActivityFilterOptions } from "@/lib/api/activities";
-import { getWeekRange, getWeekSlug, type WeekRange } from "@/lib/dates/week-range";
+import {
+  getWeekRange,
+  getWeekSlug,
+  type WeekRange,
+} from "@/lib/dates/week-range";
 import { cn } from "@/lib/utils";
 import type { ActivityCostType, ActivityFilters } from "@/types/activity";
 
@@ -58,8 +62,8 @@ export async function ActivityDirectory({
             ? "This week"
             : activePage === "next-week"
               ? "Next week"
-              : "Archive"} ·{" "}
-          {range.label}
+              : "Archive"}{" "}
+          · {range.label}
         </p>
 
         <div className="mt-3 flex items-end justify-between gap-6">
@@ -212,6 +216,7 @@ function parseFilters(
   return {
     q: q && q.length <= 100 ? q : undefined,
     sort: sort === "desc" ? "desc" : "asc",
+    sortBy: "date",
     status: status === "cancelled" ? "cancelled" : undefined,
     costType: COST_TYPES.has(costType as ActivityCostType)
       ? (costType as ActivityCostType)

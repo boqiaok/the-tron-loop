@@ -13,6 +13,7 @@ import {
   type ActivityInput,
   updateAdminActivity,
   uploadAdminImage,
+  updateAdminVenue,
 } from "@/lib/api/admin-activities";
 import {
   ACTIVITY_TIME_ZONE,
@@ -25,6 +26,9 @@ import { cn } from "@/lib/utils";
 import type {
   Activity,
   ActivityCostType,
+  ActivityEnvironment,
+  ActivityScheduleMode,
+  DurationSource,
   ActivityTag,
   Venue,
 } from "@/types/activity";
@@ -42,11 +46,17 @@ interface FormState {
   summary: string;
   description: string;
   imageUrl: string;
+  environment: ActivityEnvironment;
+  scheduleMode: ActivityScheduleMode;
+  visitMinutes: string;
+  durationSource: DurationSource;
   sourceUrl: string;
   costType: ActivityCostType;
   costAmountFrom: string;
   costDetails: string;
   venueId: string;
+  venueLatitude: string;
+  venueLongitude: string;
   tagIds: string[];
   dates: DateField[];
 }
@@ -66,7 +76,9 @@ export function ActivityForm({
 }) {
   const router = useRouter();
   const readOnly = activity?.status === "cancelled";
-  const [form, setForm] = useState<FormState>(() => createInitialState(activity));
+  const [form, setForm] = useState<FormState>(() =>
+    createInitialState(activity),
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -159,13 +171,25 @@ export function ActivityForm({
 
     try {
       const input = toActivityInput(form);
+      if (form.venueId) {
+        await updateAdminVenue(form.venueId, {
+          latitude:
+            form.venueLatitude === "" ? null : Number(form.venueLatitude),
+          longitude:
+            form.venueLongitude === "" ? null : Number(form.venueLongitude),
+        });
+      }
       const saved = activity
         ? await updateAdminActivity(activity.id, input)
         : await createAdminActivity(input);
       router.push(`/admin/activities?status=${saved.status}`);
       router.refresh();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not save the activity.");
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Could not save the activity.",
+      );
       window.scrollTo({ top: 0, behavior: "smooth" });
     } finally {
       setSubmitting(false);
@@ -181,7 +205,9 @@ export function ActivityForm({
       update("imageUrl", uploaded.url);
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "Could not upload the image.",
+        caught instanceof Error
+          ? caught.message
+          : "Could not upload the image.",
       );
     } finally {
       setUploadingImage(false);
@@ -319,6 +345,85 @@ export function ActivityForm({
             />
           </div>
         </div>
+        <div>
+          <label htmlFor="environment" className={labelClassName}>
+            Environment
+          </label>
+          <select
+            id="environment"
+            className={inputClassName}
+            value={form.environment}
+            onChange={(event) =>
+              update("environment", event.target.value as ActivityEnvironment)
+            }
+            disabled={readOnly}
+          >
+            <option value="unknown">Unknown</option>
+            <option value="indoor">Indoor</option>
+            <option value="outdoor">Outdoor</option>
+            <option value="mixed">Mixed</option>
+          </select>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Use Unknown unless the organiser or venue confirms this detail.
+          </p>
+        </div>
+        <div className="grid gap-5 md:grid-cols-3">
+          <div>
+            <label htmlFor="scheduleMode" className={labelClassName}>
+              Timing
+            </label>
+            <select
+              id="scheduleMode"
+              className={inputClassName}
+              value={form.scheduleMode}
+              onChange={(event) =>
+                update(
+                  "scheduleMode",
+                  event.target.value as ActivityScheduleMode,
+                )
+              }
+              disabled={readOnly}
+            >
+              <option value="fixed">Fixed session</option>
+              <option value="window">Visit during an open window</option>
+            </select>
+          </div>
+          <div>
+            <label htmlFor="visitMinutes" className={labelClassName}>
+              Recommended visit (minutes)
+            </label>
+            <input
+              id="visitMinutes"
+              className={inputClassName}
+              type="number"
+              min="15"
+              max="720"
+              required={form.scheduleMode === "window"}
+              value={form.visitMinutes}
+              onChange={(event) => update("visitMinutes", event.target.value)}
+              disabled={readOnly || form.scheduleMode !== "window"}
+            />
+          </div>
+          <div>
+            <label htmlFor="durationSource" className={labelClassName}>
+              Duration source
+            </label>
+            <select
+              id="durationSource"
+              className={inputClassName}
+              value={form.durationSource}
+              onChange={(event) =>
+                update("durationSource", event.target.value as DurationSource)
+              }
+              disabled={readOnly || form.scheduleMode !== "window"}
+            >
+              <option value="source">Organiser source</option>
+              <option value="parsed">Parsed from description</option>
+              <option value="category_default">Category estimate</option>
+              <option value="manual">Manual correction</option>
+            </select>
+          </div>
+        </div>
       </FormSection>
 
       <FormSection
@@ -359,7 +464,10 @@ export function ActivityForm({
 
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <div>
-                  <label htmlFor={`starts-${date.key}`} className={labelClassName}>
+                  <label
+                    htmlFor={`starts-${date.key}`}
+                    className={labelClassName}
+                  >
                     Starts <Required />
                   </label>
                   <input
@@ -367,14 +475,15 @@ export function ActivityForm({
                     className={inputClassName}
                     type={date.isAllDay ? "date" : "datetime-local"}
                     value={date.startsAt}
-                    onChange={(event) =>
-                      changeStart(date, event.target.value)
-                    }
+                    onChange={(event) => changeStart(date, event.target.value)}
                     required
                   />
                 </div>
                 <div>
-                  <label htmlFor={`ends-${date.key}`} className={labelClassName}>
+                  <label
+                    htmlFor={`ends-${date.key}`}
+                    className={labelClassName}
+                  >
                     Ends
                   </label>
                   <input
@@ -442,7 +551,19 @@ export function ActivityForm({
             id="venue"
             className={inputClassName}
             value={form.venueId}
-            onChange={(event) => update("venueId", event.target.value)}
+            onChange={(event) => {
+              const venue = venues.find(
+                (item) => item.id === event.target.value,
+              );
+              setForm((current) => ({
+                ...current,
+                venueId: event.target.value,
+                venueLatitude:
+                  venue?.latitude == null ? "" : String(venue.latitude),
+                venueLongitude:
+                  venue?.longitude == null ? "" : String(venue.longitude),
+              }));
+            }}
             disabled={readOnly}
           >
             <option value="">No venue</option>
@@ -453,6 +574,41 @@ export function ActivityForm({
               </option>
             ))}
           </select>
+        </div>
+
+        <div className="grid gap-5 md:grid-cols-2">
+          <div>
+            <label htmlFor="venueLatitude" className={labelClassName}>
+              Venue latitude
+            </label>
+            <input
+              id="venueLatitude"
+              className={inputClassName}
+              type="number"
+              step="any"
+              min="-90"
+              max="90"
+              value={form.venueLatitude}
+              onChange={(event) => update("venueLatitude", event.target.value)}
+              disabled={readOnly || !form.venueId}
+            />
+          </div>
+          <div>
+            <label htmlFor="venueLongitude" className={labelClassName}>
+              Venue longitude
+            </label>
+            <input
+              id="venueLongitude"
+              className={inputClassName}
+              type="number"
+              step="any"
+              min="-180"
+              max="180"
+              value={form.venueLongitude}
+              onChange={(event) => update("venueLongitude", event.target.value)}
+              disabled={readOnly || !form.venueId}
+            />
+          </div>
         </div>
 
         <fieldset disabled={readOnly}>
@@ -467,7 +623,9 @@ export function ActivityForm({
                   <input
                     type="checkbox"
                     checked={form.tagIds.includes(tag.id)}
-                    onChange={(event) => toggleTag(tag.id, event.target.checked)}
+                    onChange={(event) =>
+                      toggleTag(tag.id, event.target.checked)
+                    }
                     className="size-4 accent-primary"
                   />
                   {tag.name}
@@ -591,14 +749,26 @@ function createInitialState(activity?: Activity): FormState {
     summary: activity?.summary ?? "",
     description: activity?.description ?? "",
     imageUrl: activity?.imageUrl ?? "",
+    environment: activity?.environment ?? "unknown",
+    scheduleMode: activity?.scheduleMode ?? "fixed",
+    visitMinutes:
+      activity?.visitMinutes == null ? "" : String(activity.visitMinutes),
+    durationSource: activity?.durationSource ?? "source",
     sourceUrl: activity?.sourceUrl ?? "",
     costType: activity?.costType ?? "unknown",
     costAmountFrom:
-      activity?.costAmountFrom === null || activity?.costAmountFrom === undefined
+      activity?.costAmountFrom === null ||
+      activity?.costAmountFrom === undefined
         ? ""
         : String(activity.costAmountFrom),
     costDetails: activity?.costDetails ?? "",
     venueId: activity?.venue?.id ?? "",
+    venueLatitude:
+      activity?.venue?.latitude == null ? "" : String(activity.venue.latitude),
+    venueLongitude:
+      activity?.venue?.longitude == null
+        ? ""
+        : String(activity.venue.longitude),
     tagIds: activity?.tags.map((tag) => tag.id) ?? [],
     dates: activity?.dates.length
       ? activity.dates.map((date) => ({
@@ -627,9 +797,7 @@ function toActivityInput(form: FormState): ActivityInput {
 
   const dates = form.dates.map((date) => {
     const startsAt = fromAucklandInputValue(date.startsAt);
-    const endsAt = date.endsAt
-      ? fromAucklandInputValue(date.endsAt)
-      : null;
+    const endsAt = date.endsAt ? fromAucklandInputValue(date.endsAt) : null;
 
     if (endsAt && new Date(endsAt) <= new Date(startsAt)) {
       throw new Error("An end time must be later than its start time.");
@@ -649,6 +817,12 @@ function toActivityInput(form: FormState): ActivityInput {
     summary: emptyToNull(form.summary),
     description: form.description.trim(),
     imageUrl: emptyToNull(form.imageUrl),
+    environment: form.environment,
+    scheduleMode: form.scheduleMode,
+    visitMinutes:
+      form.scheduleMode === "window" ? Number(form.visitMinutes) : null,
+    durationSource:
+      form.scheduleMode === "window" ? form.durationSource : "source",
     sourceUrl: emptyToNull(form.sourceUrl),
     costType: form.costType,
     costAmountFrom:

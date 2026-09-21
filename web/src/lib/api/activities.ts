@@ -36,6 +36,7 @@ export function getActivities(
     page: String(filters.page),
     limit: "12",
     sort: filters.sort,
+    sortBy: filters.sortBy,
   });
 
   if (filters.q) searchParams.set("q", filters.q);
@@ -43,6 +44,10 @@ export function getActivities(
   if (filters.costType) searchParams.set("costType", filters.costType);
   if (filters.tag) searchParams.set("tag", filters.tag);
   if (filters.suburb) searchParams.set("suburb", filters.suburb);
+  if (filters.latitude !== undefined)
+    searchParams.set("latitude", String(filters.latitude));
+  if (filters.longitude !== undefined)
+    searchParams.set("longitude", String(filters.longitude));
 
   return fetchJson<PaginatedActivities>(`/activities?${searchParams}`, signal);
 }
@@ -60,9 +65,7 @@ export function getActivityFilterOptions(
   );
 }
 
-export async function getActivityCount(
-  range: ActivityRange,
-): Promise<number> {
+export async function getActivityCount(range: ActivityRange): Promise<number> {
   const searchParams = new URLSearchParams({
     from: range.from,
     to: range.to,

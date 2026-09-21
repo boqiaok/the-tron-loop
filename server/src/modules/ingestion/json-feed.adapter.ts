@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ActivityCostType } from '../activities/enums/activity-cost-type.enum';
+import { ActivityEnvironment } from '../activities/enums/activity-environment.enum';
 import { Source } from './entities/source.entity';
 import { ImportedActivity, SourceAdapter } from './source-adapter';
 
@@ -61,6 +62,15 @@ function parseFeedActivity(raw: Record<string, unknown>): ImportedActivity {
   if (!Object.values(ActivityCostType).includes(costType as ActivityCostType)) {
     throw new BadRequestException('costType is invalid');
   }
+  const environment =
+    readOptionalString(raw, 'environment') ?? ActivityEnvironment.Unknown;
+  if (
+    !Object.values(ActivityEnvironment).includes(
+      environment as ActivityEnvironment,
+    )
+  ) {
+    throw new BadRequestException('environment is invalid');
+  }
 
   const tags = raw.tags ?? [];
   if (!Array.isArray(tags) || !tags.every((tag) => typeof tag === 'string')) {
@@ -78,6 +88,7 @@ function parseFeedActivity(raw: Record<string, unknown>): ImportedActivity {
     summary: readOptionalString(raw, 'summary', 500),
     description: readOptionalString(raw, 'description') ?? title,
     imageUrl: readOptionalUrl(raw, 'imageUrl'),
+    environment: environment as ActivityEnvironment,
     sourceUrl: readOptionalUrl(raw, 'sourceUrl'),
     dates: [
       {
@@ -92,6 +103,8 @@ function parseFeedActivity(raw: Record<string, unknown>): ImportedActivity {
           name: readRequiredString(venue, 'name', 200),
           address: readOptionalString(venue, 'address'),
           suburb: readOptionalString(venue, 'suburb', 120),
+          latitude: readOptionalCoordinate(venue, 'latitude', -90, 90),
+          longitude: readOptionalCoordinate(venue, 'longitude', -180, 180),
         }
       : null,
     tags: [...new Set(tags.map((tag) => tag.trim()).filter(Boolean))],
@@ -176,6 +189,25 @@ function readOptionalNumber(
   if (value === undefined || value === null) return null;
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
     throw new BadRequestException(`${key} must be a non-negative number`);
+  }
+  return value;
+}
+
+function readOptionalCoordinate(
+  record: Record<string, unknown>,
+  key: string,
+  min: number,
+  max: number,
+): number | null {
+  const value = record[key];
+  if (value === undefined || value === null) return null;
+  if (
+    typeof value !== 'number' ||
+    !Number.isFinite(value) ||
+    value < min ||
+    value > max
+  ) {
+    throw new BadRequestException(`${key} must be between ${min} and ${max}`);
   }
   return value;
 }

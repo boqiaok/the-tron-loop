@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { WeekRange } from "@/lib/dates/week-range";
+import { DiscoveryPrompt } from "@/components/discovery/discovery-prompt";
 
 interface HomePageProps {
   currentCount: number;
@@ -35,6 +36,7 @@ export function HomePage({
             A clear weekly collection of local markets, workshops,
             performances, family activities and community events.
           </p>
+          <DiscoveryPrompt />
           <div className="mt-8 flex flex-wrap items-center gap-5">
             <Link
               href="/this-week"

@@ -5,6 +5,7 @@ import {
   ArrayUnique,
   IsArray,
   IsEnum,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
@@ -17,6 +18,9 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { ActivityCostType } from '../enums/activity-cost-type.enum';
+import { ActivityEnvironment } from '../enums/activity-environment.enum';
+import { ActivityScheduleMode } from '../enums/activity-schedule-mode.enum';
+import { DurationSource } from '../enums/duration-source.enum';
 import { ActivityDateInputDto } from './activity-date-input.dto';
 
 export class CreateActivityDto {
@@ -67,6 +71,28 @@ export class CreateActivityDto {
       'imageUrl must be an HTTP(S) URL or a local path under /images/ or /media/',
   })
   imageUrl?: string | null;
+
+  @ApiPropertyOptional({ enum: ActivityEnvironment, default: 'unknown' })
+  @IsOptional()
+  @IsEnum(ActivityEnvironment)
+  environment?: ActivityEnvironment;
+
+  @ApiPropertyOptional({ enum: ActivityScheduleMode, default: 'fixed' })
+  @IsOptional()
+  @IsEnum(ActivityScheduleMode)
+  scheduleMode?: ActivityScheduleMode;
+
+  @ApiPropertyOptional({ type: Number, minimum: 15, nullable: true })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(15)
+  visitMinutes?: number | null;
+
+  @ApiPropertyOptional({ enum: DurationSource, default: 'source' })
+  @IsOptional()
+  @IsEnum(DurationSource)
+  durationSource?: DurationSource;
 
   @ApiPropertyOptional({ enum: ActivityCostType, default: 'unknown' })
   @IsOptional()

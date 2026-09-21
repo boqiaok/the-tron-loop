@@ -6,6 +6,7 @@ import { Tag } from '../../modules/activities/entities/tag.entity';
 import { Venue } from '../../modules/activities/entities/venue.entity';
 import { ActivityCostType } from '../../modules/activities/enums/activity-cost-type.enum';
 import { ActivityStatus } from '../../modules/activities/enums/activity-status.enum';
+import { ActivityEnvironment } from '../../modules/activities/enums/activity-environment.enum';
 
 const TIMEZONE = 'Pacific/Auckland';
 
@@ -15,6 +16,7 @@ interface SeedActivity {
   summary: string;
   description: string;
   costType: ActivityCostType;
+  environment: ActivityEnvironment;
   costAmountFrom?: string;
   costDetails?: string;
   imageUrl?: string;
@@ -30,26 +32,36 @@ const venues = [
     name: 'Dinsdale Community Hall',
     address: '62 Whatawhata Road',
     suburb: 'Dinsdale',
+    latitude: -37.7969,
+    longitude: 175.2471,
   },
   {
     name: 'Waikato Museum',
     address: '1 Grantham Street',
     suburb: 'Hamilton Central',
+    latitude: -37.7909,
+    longitude: 175.2845,
   },
   {
     name: 'Hamilton Gardens',
     address: 'Hungerford Crescent',
     suburb: 'Hamilton East',
+    latitude: -37.8065,
+    longitude: 175.3052,
   },
   {
     name: 'The Meteor',
     address: '1 Victoria Street',
     suburb: 'Hamilton Central',
+    latitude: -37.7859,
+    longitude: 175.2817,
   },
   {
     name: 'Hamilton Lake Domain',
     address: 'Ruakiwi Road',
     suburb: 'Hamilton Lake',
+    latitude: -37.8015,
+    longitude: 175.2723,
   },
 ];
 
@@ -59,6 +71,10 @@ const tags = [
   { name: 'Community', slug: 'community' },
   { name: 'Arts', slug: 'arts' },
   { name: 'Outdoors', slug: 'outdoors' },
+  { name: 'Crafts', slug: 'crafts' },
+  { name: 'Science', slug: 'science' },
+  { name: 'Music', slug: 'music' },
+  { name: 'Wellbeing', slug: 'wellbeing' },
 ];
 
 const activities: SeedActivity[] = [
@@ -70,6 +86,7 @@ const activities: SeedActivity[] = [
     description:
       'A practical community repair session for small appliances, clothing and bicycles.',
     costType: ActivityCostType.Free,
+    environment: ActivityEnvironment.Indoor,
     imageUrl: '/images/activities/event-triptych.png',
     venue: 'Dinsdale Community Hall',
     tags: ['community'],
@@ -84,6 +101,7 @@ const activities: SeedActivity[] = [
     description:
       'Local and international short films followed by an informal audience discussion.',
     costType: ActivityCostType.Paid,
+    environment: ActivityEnvironment.Indoor,
     costAmountFrom: '8.00',
     costDetails: 'Student ID price',
     venue: 'The Meteor',
@@ -100,6 +118,7 @@ const activities: SeedActivity[] = [
     description:
       'A guided creative workshop using materials supplied by the museum.',
     costType: ActivityCostType.Free,
+    environment: ActivityEnvironment.Indoor,
     imageUrl: '/images/activities/event-triptych.png',
     venue: 'Waikato Museum',
     tags: ['family', 'arts'],
@@ -115,6 +134,7 @@ const activities: SeedActivity[] = [
     description:
       'A casual live music session with a rotating line-up of local performers.',
     costType: ActivityCostType.Paid,
+    environment: ActivityEnvironment.Indoor,
     imageUrl: '/images/activities/event-triptych.png',
     costAmountFrom: '15.00',
     venue: 'The Meteor',
@@ -130,6 +150,7 @@ const activities: SeedActivity[] = [
     description:
       'Collect a trail sheet and explore family-friendly clues throughout the gardens.',
     costType: ActivityCostType.Free,
+    environment: ActivityEnvironment.Outdoor,
     venue: 'Hamilton Gardens',
     tags: ['family', 'outdoors'],
     dayOffset: 5,
@@ -143,6 +164,7 @@ const activities: SeedActivity[] = [
     description:
       'Meet other locals for a social walk suitable for a range of fitness levels.',
     costType: ActivityCostType.Free,
+    environment: ActivityEnvironment.Outdoor,
     venue: 'Hamilton Lake Domain',
     tags: ['community', 'outdoors'],
     dayOffset: 6,
@@ -157,6 +179,7 @@ const activities: SeedActivity[] = [
     description:
       'Bring a sketchbook or use the basic drawing materials provided.',
     costType: ActivityCostType.Free,
+    environment: ActivityEnvironment.Indoor,
     venue: 'Waikato Museum',
     tags: ['arts', 'students'],
     dayOffset: 8,
@@ -170,6 +193,7 @@ const activities: SeedActivity[] = [
       'Practise outdoor photography with guidance from a local enthusiast.',
     description: 'A relaxed photo walk suitable for phones and cameras.',
     costType: ActivityCostType.Paid,
+    environment: ActivityEnvironment.Outdoor,
     costAmountFrom: '12.00',
     venue: 'Hamilton Gardens',
     tags: ['arts', 'outdoors'],
@@ -185,11 +209,167 @@ const activities: SeedActivity[] = [
     description:
       'Drop in for modern board games with volunteer hosts available to teach the rules.',
     costType: ActivityCostType.Free,
+    environment: ActivityEnvironment.Indoor,
     venue: 'Dinsdale Community Hall',
     tags: ['community', 'family', 'students'],
     dayOffset: 12,
     startsAt: [18, 0],
     durationMinutes: 180,
+  },
+  {
+    title: 'Saturday Family Craft Studio',
+    slug: 'dev-saturday-family-craft-studio',
+    summary: 'A guided craft session for children and their adults.',
+    description:
+      'Make a colourful keepsake using materials supplied by local artists.',
+    costType: ActivityCostType.Free,
+    environment: ActivityEnvironment.Indoor,
+    venue: 'Waikato Museum',
+    tags: ['family', 'arts', 'crafts'],
+    dayOffset: 5,
+    startsAt: [12, 0],
+    durationMinutes: 75,
+  },
+  {
+    title: 'Curious Kids Science Show',
+    slug: 'dev-curious-kids-science-show',
+    summary:
+      'Live demonstrations exploring light, sound and surprising reactions.',
+    description:
+      'An interactive science presentation designed for primary-age children.',
+    costType: ActivityCostType.Free,
+    environment: ActivityEnvironment.Indoor,
+    venue: 'Dinsdale Community Hall',
+    tags: ['family', 'science'],
+    dayOffset: 5,
+    startsAt: [14, 15],
+    durationMinutes: 60,
+  },
+  {
+    title: 'Young Makers Workshop',
+    slug: 'dev-young-makers-workshop',
+    summary: 'Build a small moving model with recycled materials.',
+    description:
+      'A hands-on family workshop combining craft, design and simple engineering.',
+    costType: ActivityCostType.Paid,
+    environment: ActivityEnvironment.Indoor,
+    costAmountFrom: '6.00',
+    venue: 'Dinsdale Community Hall',
+    tags: ['family', 'science', 'crafts'],
+    dayOffset: 5,
+    startsAt: [15, 45],
+    durationMinutes: 75,
+  },
+  {
+    title: 'Family Printmaking Drop-in',
+    slug: 'dev-family-printmaking-drop-in',
+    summary: 'Try simple printmaking techniques in a relaxed drop-in session.',
+    description:
+      'Create a set of paper prints with washable inks and reusable stamps.',
+    costType: ActivityCostType.Paid,
+    environment: ActivityEnvironment.Indoor,
+    costAmountFrom: '4.00',
+    venue: 'Waikato Museum',
+    tags: ['family', 'arts', 'crafts'],
+    dayOffset: 5,
+    startsAt: [13, 0],
+    durationMinutes: 90,
+  },
+  {
+    title: 'Garden Discovery Lab',
+    slug: 'dev-garden-discovery-lab',
+    summary: 'Investigate seeds, insects and plant adaptations with a guide.',
+    description:
+      'A sheltered and outdoor family activity around Hamilton Gardens.',
+    costType: ActivityCostType.Free,
+    environment: ActivityEnvironment.Mixed,
+    venue: 'Hamilton Gardens',
+    tags: ['family', 'science', 'outdoors'],
+    dayOffset: 5,
+    startsAt: [14, 30],
+    durationMinutes: 75,
+  },
+  {
+    title: 'Community Choir Taster',
+    slug: 'dev-community-choir-taster',
+    summary: 'Learn two easy songs with a welcoming local choir.',
+    description:
+      'No previous singing experience is required for this community session.',
+    costType: ActivityCostType.Free,
+    environment: ActivityEnvironment.Indoor,
+    venue: 'The Meteor',
+    tags: ['community', 'music'],
+    dayOffset: 5,
+    startsAt: [12, 30],
+    durationMinutes: 90,
+  },
+  {
+    title: 'Mini Theatre Workshop',
+    slug: 'dev-mini-theatre-workshop',
+    summary: 'Play theatre games and create a short scene as a family.',
+    description:
+      'A lively introduction to performance for children and caregivers.',
+    costType: ActivityCostType.Unknown,
+    environment: ActivityEnvironment.Indoor,
+    venue: 'The Meteor',
+    tags: ['family', 'arts'],
+    dayOffset: 5,
+    startsAt: [15, 30],
+    durationMinutes: 75,
+  },
+  {
+    title: 'Lake Nature Treasure Hunt',
+    slug: 'dev-lake-nature-treasure-hunt',
+    summary: 'Follow clues around the lake and spot native birds.',
+    description: 'A self-guided outdoor challenge for family teams.',
+    costType: ActivityCostType.Free,
+    environment: ActivityEnvironment.Outdoor,
+    venue: 'Hamilton Lake Domain',
+    tags: ['family', 'outdoors'],
+    dayOffset: 5,
+    startsAt: [13, 30],
+    durationMinutes: 90,
+  },
+  {
+    title: 'Saturday Repair Skills',
+    slug: 'dev-saturday-repair-skills',
+    summary: 'Learn basic sewing and household repairs from volunteers.',
+    description:
+      'A practical indoor session with tools and materials provided.',
+    costType: ActivityCostType.Free,
+    environment: ActivityEnvironment.Indoor,
+    venue: 'Dinsdale Community Hall',
+    tags: ['community', 'crafts'],
+    dayOffset: 5,
+    startsAt: [11, 0],
+    durationMinutes: 90,
+  },
+  {
+    title: 'Mindful Museum Hour',
+    slug: 'dev-mindful-museum-hour',
+    summary: 'Slow looking and gentle creative reflection in the galleries.',
+    description: 'A quiet wellbeing session guided by a museum host.',
+    costType: ActivityCostType.Free,
+    environment: ActivityEnvironment.Indoor,
+    venue: 'Waikato Museum',
+    tags: ['arts', 'wellbeing'],
+    dayOffset: 6,
+    startsAt: [11, 0],
+    durationMinutes: 60,
+  },
+  {
+    title: 'Sunday Family Rhythm Circle',
+    slug: 'dev-sunday-family-rhythm-circle',
+    summary: 'Make music together using drums and simple percussion.',
+    description: 'An accessible music session for children and their adults.',
+    costType: ActivityCostType.Paid,
+    environment: ActivityEnvironment.Indoor,
+    costAmountFrom: '5.00',
+    venue: 'The Meteor',
+    tags: ['family', 'music'],
+    dayOffset: 6,
+    startsAt: [13, 0],
+    durationMinutes: 60,
   },
 ];
 
@@ -233,6 +413,7 @@ async function seed(): Promise<void> {
           summary: input.summary,
           description: input.description,
           imageUrl: input.imageUrl ?? null,
+          environment: input.environment,
           costType: input.costType,
           costAmountFrom: input.costAmountFrom ?? null,
           currency: 'NZD',
