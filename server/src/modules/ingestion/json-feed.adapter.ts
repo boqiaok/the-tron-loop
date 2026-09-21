@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ActivityCostType } from '../activities/enums/activity-cost-type.enum';
+import { ActivityCategory } from '../activities/enums/activity-category.enum';
 import { ActivityEnvironment } from '../activities/enums/activity-environment.enum';
 import { Source } from './entities/source.entity';
 import { ImportedActivity, SourceAdapter } from './source-adapter';
@@ -71,6 +72,11 @@ function parseFeedActivity(raw: Record<string, unknown>): ImportedActivity {
   ) {
     throw new BadRequestException('environment is invalid');
   }
+  const category =
+    readOptionalString(raw, 'category') ?? ActivityCategory.Community;
+  if (!Object.values(ActivityCategory).includes(category as ActivityCategory)) {
+    throw new BadRequestException('category is invalid');
+  }
 
   const tags = raw.tags ?? [];
   if (!Array.isArray(tags) || !tags.every((tag) => typeof tag === 'string')) {
@@ -88,6 +94,7 @@ function parseFeedActivity(raw: Record<string, unknown>): ImportedActivity {
     summary: readOptionalString(raw, 'summary', 500),
     description: readOptionalString(raw, 'description') ?? title,
     imageUrl: readOptionalUrl(raw, 'imageUrl'),
+    category: category as ActivityCategory,
     environment: environment as ActivityEnvironment,
     sourceUrl: readOptionalUrl(raw, 'sourceUrl'),
     dates: [

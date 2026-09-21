@@ -1,3 +1,10 @@
+export type ActivityCategory =
+  | "market"
+  | "workshop"
+  | "family"
+  | "outdoors"
+  | "arts_music"
+  | "community";
 export type ActivityCostType = "free" | "paid" | "unknown";
 export type ActivityStatus = "draft" | "published" | "cancelled";
 export type ActivityEnvironment = "indoor" | "outdoor" | "mixed" | "unknown";
@@ -37,6 +44,7 @@ export interface Activity {
   summary: string | null;
   description: string;
   imageUrl: string | null;
+  category: ActivityCategory;
   environment: ActivityEnvironment;
   scheduleMode: ActivityScheduleMode;
   visitMinutes: number | null;
@@ -66,20 +74,22 @@ export interface PaginatedActivities {
 }
 
 export interface ActivityFilterOptions {
-  costTypes: ActivityCostType[];
-  tags: Array<Pick<ActivityTag, "name" | "slug">>;
+  categories: Array<{ category: ActivityCategory; count: number }>;
   suburbs: string[];
+  cancelledCount: number;
 }
+
+export type WhenFilter = "today" | "weekend" | "evening";
 
 export interface ActivityFilters {
   q?: string;
-  sort: "asc" | "desc";
   sortBy: "date" | "distance";
   latitude?: number;
   longitude?: number;
-  status?: "cancelled";
-  costType?: ActivityCostType;
-  tag?: string;
+  includeCancelled: boolean;
+  costType?: Exclude<ActivityCostType, "unknown">;
+  categories: ActivityCategory[];
+  when?: WhenFilter;
   suburb?: string;
   page: number;
 }

@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { ActivityCategory } from '../enums/activity-category.enum';
 import { ActivityCostType } from '../enums/activity-cost-type.enum';
 import { ActivityEnvironment } from '../enums/activity-environment.enum';
 import { ActivityScheduleMode } from '../enums/activity-schedule-mode.enum';
@@ -77,6 +78,9 @@ export class ActivityResponseDto {
 
   @ApiProperty({ type: String, format: 'uri', nullable: true })
   imageUrl!: string | null;
+
+  @ApiProperty({ enum: ActivityCategory })
+  category!: ActivityCategory;
 
   @ApiProperty({ enum: ActivityEnvironment })
   environment!: ActivityEnvironment;

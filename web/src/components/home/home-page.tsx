@@ -1,214 +1,101 @@
-import { ArrowRight, CalendarDays, MapPin } from "lucide-react";
 import Link from "next/link";
 
-import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { PlannerPrompt } from "@/components/home/planner-prompt";
+import { WeekendPicks } from "@/components/home/weekend-picks";
+import {
+  formatCount,
+  formatDayRange,
+  formatShortRange,
+} from "@/lib/activities/format";
 import type { WeekRange } from "@/lib/dates/week-range";
-import { DiscoveryPrompt } from "@/components/discovery/discovery-prompt";
+import type { Activity } from "@/types/activity";
 
 interface HomePageProps {
-  currentCount: number;
-  currentWeek: WeekRange;
-  nextCount: number;
+  weekend: { range: { from: string; to: string }; activities: Activity[]; total: number };
+  weekTotal: number;
   nextWeek: WeekRange;
+  nextWeekTotal: number;
+  regularTotal: number;
 }
 
 export function HomePage({
-  currentCount,
-  currentWeek,
-  nextCount,
+  weekend,
+  weekTotal,
   nextWeek,
+  nextWeekTotal,
+  regularTotal,
 }: HomePageProps) {
-  const currentDates = getRangeParts(currentWeek);
-
   return (
     <main>
-      <section className="relative overflow-hidden bg-primary px-5 py-14 text-primary-foreground sm:px-10 sm:py-20 lg:grid lg:min-h-[590px] lg:grid-cols-[minmax(0,1.12fr)_minmax(23rem,0.88fr)] lg:items-center lg:gap-16 lg:px-12 xl:px-[6.875rem]">
-        <div className="relative z-10 max-w-3xl">
-          <p className="text-xs font-bold tracking-[0.14em] text-[#b8d6de] uppercase">
-            Hamilton · {formatCompactRange(currentWeek)}
-          </p>
-          <h1 className="mt-5 max-w-3xl font-heading text-5xl leading-[1.02] text-white sm:text-6xl lg:text-[4rem] lg:leading-[1.06]">
-            What’s on in Hamilton this week?
-          </h1>
-          <p className="mt-6 max-w-2xl text-base leading-7 text-white/75 sm:text-lg">
-            A clear weekly collection of local markets, workshops,
-            performances, family activities and community events.
-          </p>
-          <DiscoveryPrompt />
-          <div className="mt-8 flex flex-wrap items-center gap-5">
-            <Link
-              href="/this-week"
-              className={cn(
-                buttonVariants({ size: "lg" }),
-                "bg-[var(--gold)] text-foreground hover:bg-[color-mix(in_srgb,var(--gold)_84%,white)]",
-              )}
-            >
-              Explore this week
-              <ArrowRight />
-            </Link>
-            <span className="text-xs text-white/65">
-              {formatActivityCount(currentCount)} collected
-            </span>
-          </div>
-        </div>
-
-        <div className="relative mx-auto mt-12 flex h-[290px] w-full max-w-[460px] items-center justify-center lg:mt-0 lg:h-[390px]">
-          <div className="absolute size-[270px] rounded-full border-2 border-[#4d8fa7]/50 lg:size-[380px]" />
-          <div className="absolute size-[210px] rounded-full border-2 border-[var(--gold)]/45 lg:size-[290px]" />
-          <Link
-            href="/this-week"
-            className="relative z-10 flex h-[180px] w-[220px] -rotate-3 flex-col justify-between rounded-[22px] bg-background p-6 text-foreground shadow-2xl transition-transform hover:-rotate-1 hover:scale-[1.02] lg:h-[220px] lg:w-[270px] lg:p-7"
-          >
-            <span className="text-xs font-bold tracking-[0.08em] text-[var(--link)] uppercase">
-              Latest issue
-            </span>
-            <strong className="font-heading text-3xl font-normal lg:text-4xl">
-              {formatCompactRange(currentWeek)}
-            </strong>
-            <span className="text-sm font-bold text-accent-foreground">
-              This week in Hamilton →
-            </span>
-          </Link>
-        </div>
-      </section>
-
-      <section className="bg-background px-5 py-14 sm:px-10 sm:py-18 lg:px-12 xl:px-[6.875rem] xl:py-20">
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-xs font-bold tracking-[0.12em] text-[var(--link)] uppercase">
-              Current guide
-            </p>
-            <h2 className="mt-3 font-heading text-3xl text-foreground sm:text-4xl lg:text-[2.625rem]">
-              Everything happening this week
-            </h2>
-          </div>
-          <p className="max-w-md text-sm leading-6 text-muted-foreground sm:text-base">
-            Activities are collected from local organisers and listed in
-            chronological order inside the weekly guide.
-          </p>
-        </div>
-
-        <Link
-          href="/this-week"
-          className="mt-8 grid gap-6 rounded-2xl border bg-white p-6 shadow-[0_14px_24px_rgba(18,59,56,0.12)] transition-transform hover:-translate-y-0.5 sm:p-8 md:grid-cols-[14rem_1fr_auto] md:items-center md:gap-9"
-        >
-          <DateRangeTile dates={currentDates} />
-          <div>
-            <Badge className="bg-accent text-accent-foreground">Current</Badge>
-            <h3 className="mt-2 font-heading text-2xl text-foreground sm:text-3xl">
-              This week in Hamilton
-            </h3>
-            <p className="mt-1 text-sm leading-6 text-muted-foreground sm:text-base">
-              {formatActivityCount(currentCount)} · Markets, live music,
-              workshops, family activities and community events.
+      <section className="border-b bg-card">
+        <div className="mx-auto flex max-w-[1120px] flex-col gap-3.5 px-[18px] pt-[22px] pb-5 md:items-center md:gap-[22px] md:px-8 md:pt-[52px] md:pb-10">
+          <div className="flex max-w-[640px] flex-col gap-2.5 md:text-center">
+            <h1 className="text-[28px] leading-[1.1] tracking-[-0.03em] md:text-[42px] md:leading-[1.06] md:tracking-[-0.035em]">
+              What’s on in Hamilton{" "}
+              <br className="hidden md:inline" />
+              <span className="font-serif font-normal italic tracking-normal">
+                this week
+              </span>
+            </h1>
+            <p className="hidden text-base leading-[1.55] text-body md:block">
+              Local markets, workshops, music and family activities, collected
+              from council, library and community sources — and checked every
+              week.
             </p>
           </div>
-          <span className={cn(buttonVariants({ size: "lg" }), "w-fit")}>
-            Open the weekly guide
-            <ArrowRight />
+          <PlannerPrompt />
+          <span className="hidden text-[13px] text-muted-foreground md:block">
+            No account needed · Every listing links back to the organiser
           </span>
-        </Link>
+        </div>
       </section>
 
-      <section className="bg-secondary px-5 py-14 sm:px-10 sm:py-18 lg:px-12 xl:px-[6.875rem] xl:py-20">
-        <div>
-          <p className="text-xs font-bold tracking-[0.12em] text-[var(--link)] uppercase">
-            Coming up
-          </p>
-          <h2 className="mt-3 font-heading text-3xl text-foreground sm:text-4xl lg:text-[2.625rem]">
-            Plan a little further ahead
-          </h2>
-        </div>
+      <WeekendPicks
+        activities={weekend.activities}
+        range={weekend.range}
+        rangeLabel={formatDayRange(weekend.range)}
+        weekendTotal={weekend.total}
+        weekTotal={weekTotal}
+      />
 
+      <section className="mx-auto grid max-w-[1120px] gap-4 px-[18px] pb-8 md:grid-cols-2 md:px-8 md:pb-10">
         <Link
-          href="/next-week"
-          className="mt-8 block max-w-2xl rounded-xl border border-primary/10 bg-white p-7 transition-transform hover:-translate-y-0.5 hover:shadow-md"
+          href="/whats-on?scope=regular"
+          className="group flex flex-col gap-2 rounded-[16px] bg-primary p-[22px] text-primary-foreground hover:text-primary-foreground hover:no-underline"
         >
-          <p className="text-xs font-bold tracking-wide text-[var(--link)] uppercase">
-            {formatCompactRange(nextWeek)}
-          </p>
-          <h3 className="mt-2 font-heading text-2xl text-foreground sm:text-3xl">
-            Next week
-          </h3>
-          <p className="mt-2 text-sm text-muted-foreground sm:text-base">
-            {formatActivityCount(nextCount)} collected so far
-          </p>
-          <span className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-[var(--link)]">
-            Preview guide
-            <ArrowRight className="size-4" />
+          <span className="text-xs font-semibold tracking-[0.14em] text-[#9A9DA4] uppercase">
+            Every week, same time
+          </span>
+          <span className="text-xl font-semibold tracking-[-0.02em]">
+            {formatCount(regularTotal, "regular activity")}
+          </span>
+          <span className="text-sm leading-[1.55] text-[#B8BBC1]">
+            English conversation groups, library sessions, walking clubs and
+            social sport that repeat weekly or monthly.
+          </span>
+          <span className="mt-1.5 text-[15px] font-medium group-hover:underline">
+            Browse regular activities →
           </span>
         </Link>
-      </section>
-
-      <section className="grid gap-4 border-t bg-white px-5 py-8 sm:px-10 md:grid-cols-[auto_1fr] md:gap-12 lg:px-12 xl:px-[6.875rem]">
-        <div className="flex items-center gap-2 font-semibold text-foreground">
-          <MapPin className="size-4 text-primary" />
-          Collected locally. Checked weekly.
-        </div>
-        <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-          Every activity links back to its original organiser or source so you
-          can confirm the latest information before attending.
-        </p>
+        <Link
+          href="/whats-on?scope=next-week"
+          className="group flex flex-col gap-2 rounded-[16px] border bg-card p-[22px] text-foreground hover:text-foreground hover:no-underline"
+        >
+          <span className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+            Plan ahead
+          </span>
+          <span className="text-xl font-semibold tracking-[-0.02em]">
+            Next week · {formatShortRange(nextWeek)}
+          </span>
+          <span className="text-sm leading-[1.55] text-body">
+            {formatCount(nextWeekTotal)} collected so far. Past weeks stay
+            available under What’s on.
+          </span>
+          <span className="mt-1.5 text-[15px] font-medium text-action group-hover:underline">
+            Open next week →
+          </span>
+        </Link>
       </section>
     </main>
   );
-}
-
-function DateRangeTile({ dates }: { dates: ReturnType<typeof getRangeParts> }) {
-  return (
-    <div className="flex items-baseline gap-2 text-primary">
-      <CalendarDays className="mr-1 size-5 self-center text-[var(--gold)] md:hidden" />
-      <strong className="font-heading text-4xl font-normal sm:text-5xl">
-        {dates.startDay}
-      </strong>
-      <span className="text-[0.65rem] font-bold">{dates.startMonth}</span>
-      <span className="text-[var(--gold)]">—</span>
-      <strong className="font-heading text-4xl font-normal sm:text-5xl">
-        {dates.endDay}
-      </strong>
-      <span className="text-[0.65rem] font-bold">{dates.endMonth}</span>
-    </div>
-  );
-}
-
-function getRangeParts(range: WeekRange) {
-  const start = new Date(range.from);
-  const end = new Date(new Date(range.to).getTime() - 1);
-  const day = new Intl.DateTimeFormat("en-NZ", {
-    day: "2-digit",
-    timeZone: "Pacific/Auckland",
-  });
-  const month = new Intl.DateTimeFormat("en-NZ", {
-    month: "short",
-    timeZone: "Pacific/Auckland",
-  });
-
-  return {
-    startDay: day.format(start),
-    startMonth: month.format(start).toUpperCase(),
-    endDay: day.format(end),
-    endMonth: month.format(end).toUpperCase(),
-  };
-}
-
-function formatCompactRange(range: WeekRange): string {
-  const dates = getRangeParts(range);
-  const startMonth = titleCase(dates.startMonth);
-  const endMonth = titleCase(dates.endMonth);
-
-  if (startMonth === endMonth) {
-    return `${Number(dates.startDay)}–${Number(dates.endDay)} ${startMonth}`;
-  }
-
-  return `${Number(dates.startDay)} ${startMonth}–${Number(dates.endDay)} ${endMonth}`;
-}
-
-function formatActivityCount(count: number): string {
-  return `${count} ${count === 1 ? "activity" : "activities"}`;
-}
-
-function titleCase(value: string): string {
-  return value.charAt(0) + value.slice(1).toLowerCase();
 }

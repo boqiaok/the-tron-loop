@@ -34,6 +34,7 @@ import { ActivityTag } from './entities/activity-tag.entity';
 import { Activity } from './entities/activity.entity';
 import { Tag } from './entities/tag.entity';
 import { Venue } from './entities/venue.entity';
+import { ActivityCategory } from './enums/activity-category.enum';
 import { ActivityCostType } from './enums/activity-cost-type.enum';
 import { ActivityEnvironment } from './enums/activity-environment.enum';
 import { ActivityScheduleMode } from './enums/activity-schedule-mode.enum';
@@ -46,6 +47,7 @@ const ACTIVITY_RELATIONS = {
   activityTags: { tag: true },
 } as const;
 const MAX_PUBLIC_RANGE_MS = 169 * 60 * 60 * 1000;
+const ACTIVITY_TIME_ZONE = 'Pacific/Auckland';
 
 @Injectable()
 export class ActivitiesService {
@@ -71,6 +73,7 @@ export class ActivitiesService {
           summary: dto.summary?.trim() || null,
           description: dto.description.trim(),
           imageUrl: dto.imageUrl ?? null,
+          category: dto.category ?? ActivityCategory.Community,
           environment: dto.environment ?? ActivityEnvironment.Unknown,
           scheduleMode: dto.scheduleMode ?? ActivityScheduleMode.Fixed,
           visitMinutes: dto.visitMinutes ?? null,
@@ -135,8 +138,10 @@ export class ActivitiesService {
       .select('activity.id', 'activityId')
       .addSelect('MIN(matchingDate.startsAt)', 'firstMatchingStart')
       .groupBy('activity.id');
-    if (query.sortBy === 'distance') {
-      const expression = `CASE WHEN sortVenue.latitude IS NULL OR sortVenue.longitude IS NULL THEN NULL ELSE 6371 * acos(LEAST(1, cos(radians(:latitude)) * cos(radians(sortVenue.latitude)) * cos(radians(sortVenue.longitude) - radians(:longitude)) + sin(radians(:latitude)) * sin(radians(sortVenue.latitude)))) END`;
+    const hasLocation =
+      query.latitude !== undefined && query.longitude !== undefined;
+    const expression = `CASE WHEN sortVenue.latitude IS NULL OR sortVenue.longitude IS NULL THEN NULL ELSE 6371 * acos(LEAST(1, cos(radians(:latitude)) * cos(radians(sortVenue.latitude)) * cos(radians(sortVenue.longitude) - radians(:longitude)) + sin(radians(:latitude)) * sin(radians(sortVenue.latitude)))) END`;
+    if (hasLocation) {
       idQuery = idQuery
         .addSelect(expression, 'distanceKm')
         .addGroupBy('sortVenue.latitude')
@@ -144,7 +149,10 @@ export class ActivitiesService {
         .setParameters({
           latitude: query.latitude,
           longitude: query.longitude,
-        })
+        });
+    }
+    if (query.sortBy === 'distance') {
+      idQuery = idQuery
         .orderBy(
           'CASE WHEN sortVenue.latitude IS NULL OR sortVenue.longitude IS NULL THEN 1 ELSE 0 END',
           'ASC',
@@ -210,8 +218,7 @@ export class ActivitiesService {
     query: ActivityRangeQueryDto,
   ): Promise<ActivityFilterOptionsResponseDto> {
     const { from, to } = this.parsePublicRange(query);
-    const publicStatuses = [ActivityStatus.Published];
-    const [tags, suburbs] = await Promise.all([
+    const inRange = () =>
       this.activitiesRepository
         .createQueryBuilder('activity')
         .innerJoin(
@@ -219,36 +226,44 @@ export class ActivitiesService {
           'matchingDate',
           'matchingDate.startsAt >= :from AND matchingDate.startsAt < :to',
           { from, to },
-        )
-        .innerJoin('activity.activityTags', 'activityTag')
-        .innerJoin('activityTag.tag', 'tag')
-        .where('activity.status IN (:...publicStatuses)', { publicStatuses })
-        .select('tag.name', 'name')
-        .addSelect('tag.slug', 'slug')
-        .distinct(true)
-        .orderBy('tag.name', 'ASC')
-        .getRawMany<{ name: string; slug: string }>(),
-      this.activitiesRepository
-        .createQueryBuilder('activity')
-        .innerJoin(
-          'activity.dates',
-          'matchingDate',
-          'matchingDate.startsAt >= :from AND matchingDate.startsAt < :to',
-          { from, to },
-        )
+        );
+    const [categoryRows, suburbs, cancelled] = await Promise.all([
+      inRange()
+        .where('activity.status = :published', {
+          published: ActivityStatus.Published,
+        })
+        .select('activity.category', 'category')
+        .addSelect('COUNT(DISTINCT activity.id)', 'count')
+        .groupBy('activity.category')
+        .getRawMany<{ category: ActivityCategory; count: string }>(),
+      inRange()
         .innerJoin('activity.venue', 'venue')
-        .where('activity.status IN (:...publicStatuses)', { publicStatuses })
+        .where('activity.status = :published', {
+          published: ActivityStatus.Published,
+        })
         .andWhere('venue.suburb IS NOT NULL')
         .select('venue.suburb', 'suburb')
         .distinct(true)
         .orderBy('venue.suburb', 'ASC')
         .getRawMany<{ suburb: string }>(),
+      inRange()
+        .where('activity.status = :cancelled', {
+          cancelled: ActivityStatus.Cancelled,
+        })
+        .select('COUNT(DISTINCT activity.id)', 'count')
+        .getRawOne<{ count: string }>(),
     ]);
+    const counts = new Map(
+      categoryRows.map(({ category, count }) => [category, Number(count)]),
+    );
 
     return {
-      costTypes: Object.values(ActivityCostType),
-      tags,
+      categories: Object.values(ActivityCategory).map((category) => ({
+        category,
+        count: counts.get(category) ?? 0,
+      })),
       suburbs: suburbs.map(({ suburb }) => suburb),
+      cancelledCount: Number(cancelled?.count ?? 0),
     };
   }
 
@@ -275,6 +290,22 @@ export class ActivitiesService {
         (date) => date.recurrenceRule !== null,
       ),
     }));
+  }
+
+  async findPublicBySlug(slug: string): Promise<ActivityResponseDto> {
+    const activity = await this.activitiesRepository.findOne({
+      where: {
+        slug,
+        status: In([ActivityStatus.Published, ActivityStatus.Cancelled]),
+      },
+      relations: ACTIVITY_RELATIONS,
+    });
+
+    if (!activity) {
+      throw new NotFoundException(`Activity "${slug}" was not found`);
+    }
+
+    return toActivityResponse(activity);
   }
 
   async findAdminById(id: string): Promise<ActivityResponseDto> {
@@ -437,14 +468,13 @@ export class ActivitiesService {
     const queryBuilder = this.activitiesRepository
       .createQueryBuilder('activity')
       .innerJoin('activity.dates', 'matchingDate')
-      .where('activity.status = :publicStatus', {
-        publicStatus:
-          query.status === 'cancelled'
-            ? ActivityStatus.Cancelled
-            : ActivityStatus.Published,
+      .where('activity.status IN (:...publicStatuses)', {
+        publicStatuses: query.includeCancelled
+          ? [ActivityStatus.Published, ActivityStatus.Cancelled]
+          : [ActivityStatus.Published],
       });
 
-    if (query.sortBy === 'distance') {
+    if (query.latitude !== undefined && query.longitude !== undefined) {
       queryBuilder.leftJoin('activity.venue', 'sortVenue');
     }
 
@@ -452,11 +482,36 @@ export class ActivitiesService {
       .andWhere('matchingDate.startsAt >= :from', { from })
       .andWhere('matchingDate.startsAt < :to', { to });
 
+    if (query.evening) {
+      queryBuilder.andWhere(
+        `EXTRACT(HOUR FROM matchingDate.startsAt AT TIME ZONE :timeZone) >= 17`,
+        { timeZone: ACTIVITY_TIME_ZONE },
+      );
+    }
+
+    if (query.categories?.length) {
+      queryBuilder.andWhere('activity.category IN (:...categories)', {
+        categories: query.categories,
+      });
+    }
+
     if (query.q) {
       queryBuilder.andWhere(
         `(activity.title ILIKE :search
           OR activity.summary ILIKE :search
-          OR activity.description ILIKE :search)`,
+          OR activity.description ILIKE :search
+          OR EXISTS (
+            SELECT 1 FROM "activity_tags" "searchActivityTag"
+            INNER JOIN "tags" "searchTag" ON "searchTag"."id" = "searchActivityTag"."tag_id"
+            WHERE "searchActivityTag"."activity_id" = activity.id
+              AND "searchTag"."name" ILIKE :search
+          )
+          OR EXISTS (
+            SELECT 1 FROM "venues" "searchVenue"
+            WHERE "searchVenue"."id" = "activity"."venue_id"
+              AND ("searchVenue"."name" ILIKE :search
+                OR "searchVenue"."suburb" ILIKE :search)
+          ))`,
         { search: `%${query.q}%` },
       );
     }
@@ -465,17 +520,6 @@ export class ActivitiesService {
       queryBuilder.andWhere('activity.costType = :costType', {
         costType: query.costType,
       });
-    }
-
-    if (query.tag) {
-      queryBuilder
-        .innerJoin('activity.activityTags', 'filterActivityTag')
-        .innerJoin(
-          'filterActivityTag.tag',
-          'filterTag',
-          'filterTag.slug = :tag',
-          { tag: query.tag },
-        );
     }
 
     if (query.suburb) {
@@ -708,6 +752,7 @@ export class ActivitiesService {
     if (dto.description !== undefined)
       activity.description = dto.description.trim();
     if (dto.imageUrl !== undefined) activity.imageUrl = dto.imageUrl;
+    if (dto.category !== undefined) activity.category = dto.category;
     if (dto.environment !== undefined) activity.environment = dto.environment;
     if (dto.scheduleMode !== undefined)
       activity.scheduleMode = dto.scheduleMode;

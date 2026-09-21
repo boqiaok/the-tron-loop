@@ -1,21 +1,24 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { ActivityCostType } from '../enums/activity-cost-type.enum';
+import { ActivityCategory } from '../enums/activity-category.enum';
 
-export class PublicTagOptionDto {
-  @ApiProperty()
-  name!: string;
+export class CategoryCountDto {
+  @ApiProperty({ enum: ActivityCategory })
+  category!: ActivityCategory;
 
   @ApiProperty()
-  slug!: string;
+  count!: number;
 }
 
 export class ActivityFilterOptionsResponseDto {
-  @ApiProperty({ enum: ActivityCostType, isArray: true })
-  costTypes!: ActivityCostType[];
-
-  @ApiProperty({ type: [PublicTagOptionDto] })
-  tags!: PublicTagOptionDto[];
+  @ApiProperty({
+    type: [CategoryCountDto],
+    description: 'Published activity counts for every category in the range',
+  })
+  categories!: CategoryCountDto[];
 
   @ApiProperty({ type: [String] })
   suburbs!: string[];
+
+  @ApiProperty({ description: 'Cancelled activities in the range' })
+  cancelledCount!: number;
 }

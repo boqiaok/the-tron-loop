@@ -17,6 +17,7 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
+import { ActivityCategory } from '../enums/activity-category.enum';
 import { ActivityCostType } from '../enums/activity-cost-type.enum';
 import { ActivityEnvironment } from '../enums/activity-environment.enum';
 import { ActivityScheduleMode } from '../enums/activity-schedule-mode.enum';
@@ -71,6 +72,11 @@ export class CreateActivityDto {
       'imageUrl must be an HTTP(S) URL or a local path under /images/ or /media/',
   })
   imageUrl?: string | null;
+
+  @ApiPropertyOptional({ enum: ActivityCategory, default: 'community' })
+  @IsOptional()
+  @IsEnum(ActivityCategory)
+  category?: ActivityCategory;
 
   @ApiPropertyOptional({ enum: ActivityEnvironment, default: 'unknown' })
   @IsOptional()

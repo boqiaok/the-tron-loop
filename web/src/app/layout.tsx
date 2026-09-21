@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { DM_Serif_Display, Geist_Mono, Inter } from "next/font/google";
+import { Geist_Mono, Newsreader, Outfit } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-inter",
+const outfit = Outfit({
+  variable: "--font-outfit",
   subsets: ["latin"],
 });
 
@@ -12,9 +12,10 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const dmSerifDisplay = DM_Serif_Display({
-  variable: "--font-dm-serif-display",
+const newsreader = Newsreader({
+  variable: "--font-newsreader",
   subsets: ["latin"],
+  style: "italic",
   weight: "400",
 });
 
@@ -34,9 +35,9 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${geistMono.variable} ${dmSerifDisplay.variable} h-full antialiased`}
+      className={`${outfit.variable} ${geistMono.variable} ${newsreader.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-muted">{children}</body>
+      <body className="min-h-full bg-background">{children}</body>
     </html>
   );
 }

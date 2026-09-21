@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "@/lib/api/config";
+import { readJson } from "@/lib/api/json";
 import type {
   DiscoveryIntent,
   ItineraryResponse,
@@ -31,7 +32,7 @@ async function post<T>(
     } catch {}
     throw new Error(message);
   }
-  return (await response.json()) as T;
+  return readJson<T>(response);
 }
 
 export function parseDiscoveryRequest(text: string): Promise<ParseResponse> {

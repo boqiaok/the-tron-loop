@@ -1,7 +1,8 @@
 import { ConfigService } from '@nestjs/config';
+import { ActivityCategory } from '../activities/enums/activity-category.enum';
 import { ActivityCostType } from '../activities/enums/activity-cost-type.enum';
 import { Source } from './entities/source.entity';
-import { EventfindaAdapter } from './eventfinda.adapter';
+import { EventfindaAdapter, inferCategory } from './eventfinda.adapter';
 import { SourceType } from './source-type.enum';
 
 describe('EventfindaAdapter', () => {
@@ -214,3 +215,16 @@ function source(): Source {
     lastRunAt: null,
   } as Source;
 }
+
+describe('inferCategory', () => {
+  it.each([
+    ['Hamilton Night Market', 'Food & Drink', ActivityCategory.Market],
+    ['Pottery for beginners', 'Workshops & Classes', ActivityCategory.Workshop],
+    ['Storytime', 'Kids & Family', ActivityCategory.Family],
+    ['Riverside Parkrun', 'Sports & Outdoors', ActivityCategory.Outdoors],
+    ['Friday Jazz', 'Concerts & Gig Guide', ActivityCategory.ArtsMusic],
+    ['Volunteer meetup', null, ActivityCategory.Community],
+  ])('maps "%s" (%s) to %s', (title, sourceCategory, expected) => {
+    expect(inferCategory(title, sourceCategory)).toBe(expected);
+  });
+});

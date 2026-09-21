@@ -13,6 +13,7 @@ import { Activity } from '../activities/entities/activity.entity';
 import { Tag } from '../activities/entities/tag.entity';
 import { Venue } from '../activities/entities/venue.entity';
 import { ActivityStatus } from '../activities/enums/activity-status.enum';
+import { ActivityCategory } from '../activities/enums/activity-category.enum';
 import { ActivityEnvironment } from '../activities/enums/activity-environment.enum';
 import { inferActivityScheduling } from '../activities/activity-duration';
 import {
@@ -214,6 +215,7 @@ export class IngestionService {
           summary: item.summary,
           description: item.description,
           imageUrl: item.imageUrl,
+          category: item.category ?? ActivityCategory.Community,
           environment: item.environment ?? ActivityEnvironment.Unknown,
           scheduleMode: item.scheduleMode ?? inferredScheduling.scheduleMode,
           visitMinutes:

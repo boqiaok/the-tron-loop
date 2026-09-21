@@ -1,3 +1,4 @@
+import { ActivityCategory } from '../activities/enums/activity-category.enum';
 import { ActivityCostType } from '../activities/enums/activity-cost-type.enum';
 import { ActivityEnvironment } from '../activities/enums/activity-environment.enum';
 import { ActivityScheduleMode } from '../activities/enums/activity-schedule-mode.enum';
@@ -368,6 +369,7 @@ function candidate(
       summary: null,
       description: 'Test',
       imageUrl: null,
+      category: ActivityCategory.Community,
       environment: ActivityEnvironment.Indoor,
       scheduleMode: ActivityScheduleMode.Fixed,
       visitMinutes: null,

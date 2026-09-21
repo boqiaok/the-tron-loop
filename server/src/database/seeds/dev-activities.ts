@@ -6,6 +6,7 @@ import { Tag } from '../../modules/activities/entities/tag.entity';
 import { Venue } from '../../modules/activities/entities/venue.entity';
 import { ActivityCostType } from '../../modules/activities/enums/activity-cost-type.enum';
 import { ActivityStatus } from '../../modules/activities/enums/activity-status.enum';
+import { ActivityCategory } from '../../modules/activities/enums/activity-category.enum';
 import { ActivityEnvironment } from '../../modules/activities/enums/activity-environment.enum';
 
 const TIMEZONE = 'Pacific/Auckland';
@@ -16,6 +17,7 @@ interface SeedActivity {
   summary: string;
   description: string;
   costType: ActivityCostType;
+  category: ActivityCategory;
   environment: ActivityEnvironment;
   costAmountFrom?: string;
   costDetails?: string;
@@ -86,6 +88,7 @@ const activities: SeedActivity[] = [
     description:
       'A practical community repair session for small appliances, clothing and bicycles.',
     costType: ActivityCostType.Free,
+    category: ActivityCategory.Workshop,
     environment: ActivityEnvironment.Indoor,
     imageUrl: '/images/activities/event-triptych.png',
     venue: 'Dinsdale Community Hall',
@@ -101,6 +104,7 @@ const activities: SeedActivity[] = [
     description:
       'Local and international short films followed by an informal audience discussion.',
     costType: ActivityCostType.Paid,
+    category: ActivityCategory.ArtsMusic,
     environment: ActivityEnvironment.Indoor,
     costAmountFrom: '8.00',
     costDetails: 'Student ID price',
@@ -118,6 +122,7 @@ const activities: SeedActivity[] = [
     description:
       'A guided creative workshop using materials supplied by the museum.',
     costType: ActivityCostType.Free,
+    category: ActivityCategory.ArtsMusic,
     environment: ActivityEnvironment.Indoor,
     imageUrl: '/images/activities/event-triptych.png',
     venue: 'Waikato Museum',
@@ -134,6 +139,7 @@ const activities: SeedActivity[] = [
     description:
       'A casual live music session with a rotating line-up of local performers.',
     costType: ActivityCostType.Paid,
+    category: ActivityCategory.ArtsMusic,
     environment: ActivityEnvironment.Indoor,
     imageUrl: '/images/activities/event-triptych.png',
     costAmountFrom: '15.00',
@@ -150,6 +156,7 @@ const activities: SeedActivity[] = [
     description:
       'Collect a trail sheet and explore family-friendly clues throughout the gardens.',
     costType: ActivityCostType.Free,
+    category: ActivityCategory.Family,
     environment: ActivityEnvironment.Outdoor,
     venue: 'Hamilton Gardens',
     tags: ['family', 'outdoors'],
@@ -164,6 +171,7 @@ const activities: SeedActivity[] = [
     description:
       'Meet other locals for a social walk suitable for a range of fitness levels.',
     costType: ActivityCostType.Free,
+    category: ActivityCategory.Outdoors,
     environment: ActivityEnvironment.Outdoor,
     venue: 'Hamilton Lake Domain',
     tags: ['community', 'outdoors'],
@@ -179,6 +187,7 @@ const activities: SeedActivity[] = [
     description:
       'Bring a sketchbook or use the basic drawing materials provided.',
     costType: ActivityCostType.Free,
+    category: ActivityCategory.ArtsMusic,
     environment: ActivityEnvironment.Indoor,
     venue: 'Waikato Museum',
     tags: ['arts', 'students'],
@@ -193,6 +202,7 @@ const activities: SeedActivity[] = [
       'Practise outdoor photography with guidance from a local enthusiast.',
     description: 'A relaxed photo walk suitable for phones and cameras.',
     costType: ActivityCostType.Paid,
+    category: ActivityCategory.Outdoors,
     environment: ActivityEnvironment.Outdoor,
     costAmountFrom: '12.00',
     venue: 'Hamilton Gardens',
@@ -209,6 +219,7 @@ const activities: SeedActivity[] = [
     description:
       'Drop in for modern board games with volunteer hosts available to teach the rules.',
     costType: ActivityCostType.Free,
+    category: ActivityCategory.Community,
     environment: ActivityEnvironment.Indoor,
     venue: 'Dinsdale Community Hall',
     tags: ['community', 'family', 'students'],
@@ -223,6 +234,7 @@ const activities: SeedActivity[] = [
     description:
       'Make a colourful keepsake using materials supplied by local artists.',
     costType: ActivityCostType.Free,
+    category: ActivityCategory.Family,
     environment: ActivityEnvironment.Indoor,
     venue: 'Waikato Museum',
     tags: ['family', 'arts', 'crafts'],
@@ -238,6 +250,7 @@ const activities: SeedActivity[] = [
     description:
       'An interactive science presentation designed for primary-age children.',
     costType: ActivityCostType.Free,
+    category: ActivityCategory.Family,
     environment: ActivityEnvironment.Indoor,
     venue: 'Dinsdale Community Hall',
     tags: ['family', 'science'],
@@ -252,6 +265,7 @@ const activities: SeedActivity[] = [
     description:
       'A hands-on family workshop combining craft, design and simple engineering.',
     costType: ActivityCostType.Paid,
+    category: ActivityCategory.Workshop,
     environment: ActivityEnvironment.Indoor,
     costAmountFrom: '6.00',
     venue: 'Dinsdale Community Hall',
@@ -267,6 +281,7 @@ const activities: SeedActivity[] = [
     description:
       'Create a set of paper prints with washable inks and reusable stamps.',
     costType: ActivityCostType.Paid,
+    category: ActivityCategory.Family,
     environment: ActivityEnvironment.Indoor,
     costAmountFrom: '4.00',
     venue: 'Waikato Museum',
@@ -282,6 +297,7 @@ const activities: SeedActivity[] = [
     description:
       'A sheltered and outdoor family activity around Hamilton Gardens.',
     costType: ActivityCostType.Free,
+    category: ActivityCategory.Workshop,
     environment: ActivityEnvironment.Mixed,
     venue: 'Hamilton Gardens',
     tags: ['family', 'science', 'outdoors'],
@@ -296,6 +312,7 @@ const activities: SeedActivity[] = [
     description:
       'No previous singing experience is required for this community session.',
     costType: ActivityCostType.Free,
+    category: ActivityCategory.ArtsMusic,
     environment: ActivityEnvironment.Indoor,
     venue: 'The Meteor',
     tags: ['community', 'music'],
@@ -310,6 +327,7 @@ const activities: SeedActivity[] = [
     description:
       'A lively introduction to performance for children and caregivers.',
     costType: ActivityCostType.Unknown,
+    category: ActivityCategory.Workshop,
     environment: ActivityEnvironment.Indoor,
     venue: 'The Meteor',
     tags: ['family', 'arts'],
@@ -323,6 +341,7 @@ const activities: SeedActivity[] = [
     summary: 'Follow clues around the lake and spot native birds.',
     description: 'A self-guided outdoor challenge for family teams.',
     costType: ActivityCostType.Free,
+    category: ActivityCategory.Outdoors,
     environment: ActivityEnvironment.Outdoor,
     venue: 'Hamilton Lake Domain',
     tags: ['family', 'outdoors'],
@@ -337,6 +356,7 @@ const activities: SeedActivity[] = [
     description:
       'A practical indoor session with tools and materials provided.',
     costType: ActivityCostType.Free,
+    category: ActivityCategory.Workshop,
     environment: ActivityEnvironment.Indoor,
     venue: 'Dinsdale Community Hall',
     tags: ['community', 'crafts'],
@@ -350,6 +370,7 @@ const activities: SeedActivity[] = [
     summary: 'Slow looking and gentle creative reflection in the galleries.',
     description: 'A quiet wellbeing session guided by a museum host.',
     costType: ActivityCostType.Free,
+    category: ActivityCategory.Community,
     environment: ActivityEnvironment.Indoor,
     venue: 'Waikato Museum',
     tags: ['arts', 'wellbeing'],
@@ -363,6 +384,7 @@ const activities: SeedActivity[] = [
     summary: 'Make music together using drums and simple percussion.',
     description: 'An accessible music session for children and their adults.',
     costType: ActivityCostType.Paid,
+    category: ActivityCategory.Family,
     environment: ActivityEnvironment.Indoor,
     costAmountFrom: '5.00',
     venue: 'The Meteor',
@@ -413,6 +435,7 @@ async function seed(): Promise<void> {
           summary: input.summary,
           description: input.description,
           imageUrl: input.imageUrl ?? null,
+          category: input.category,
           environment: input.environment,
           costType: input.costType,
           costAmountFrom: input.costAmountFrom ?? null,

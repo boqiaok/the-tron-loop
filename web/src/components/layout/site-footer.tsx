@@ -1,34 +1,26 @@
 import Link from "next/link";
 
-import { BrandLogo } from "@/components/layout/brand-logo";
-
 export function SiteFooter() {
   return (
-    <footer className="mt-10 bg-primary text-primary-foreground">
-      <div className="grid gap-8 px-5 py-8 sm:px-10 md:grid-cols-[1fr_auto_auto] md:items-center lg:px-12">
-        <BrandLogo inverse tagline />
-        <nav
-          aria-label="Footer navigation"
-          className="flex flex-wrap gap-x-7 gap-y-3 text-xs"
-        >
-          <Link href="/this-week" className="hover:underline">
-            This Week
-          </Link>
-          <Link href="/next-week" className="hover:underline">
-            Next Week
-          </Link>
-          <Link href="/archive" className="hover:underline">
-            Archive
-          </Link>
-          <Link href="/regular-activities" className="hover:underline">
-            Regular Activities
-          </Link>
-          <Link href="/about" className="hover:underline">
-            About
-          </Link>
+    <footer className="border-t bg-secondary">
+      <div className="mx-auto flex max-w-[1120px] flex-col gap-3 px-[18px] py-[26px] text-sm text-meta md:flex-row md:items-center md:justify-between md:px-8">
+        <p>© 2026 The Tron Loop · Hamilton, New Zealand</p>
+        <nav aria-label="Footer navigation" className="flex flex-wrap gap-x-1.5">
+          <FooterLink href="/">Plan</FooterLink>
+          <span aria-hidden="true">·</span>
+          <FooterLink href="/whats-on">What’s on</FooterLink>
+          <span aria-hidden="true">·</span>
+          <FooterLink href="/about">About</FooterLink>
         </nav>
-        <p className="text-xs opacity-80">© 2026 The Tron Loop</p>
       </div>
     </footer>
+  );
+}
+
+function FooterLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link href={href} className="text-meta hover:text-foreground">
+      {children}
+    </Link>
   );
 }

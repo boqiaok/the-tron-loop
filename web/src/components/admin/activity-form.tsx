@@ -22,9 +22,11 @@ import {
   fromAucklandInputValue,
   toAucklandInputValue,
 } from "@/lib/dates/admin-date-time";
+import { CATEGORIES } from "@/lib/activities/category";
 import { cn } from "@/lib/utils";
 import type {
   Activity,
+  ActivityCategory,
   ActivityCostType,
   ActivityEnvironment,
   ActivityScheduleMode,
@@ -46,6 +48,7 @@ interface FormState {
   summary: string;
   description: string;
   imageUrl: string;
+  category: ActivityCategory;
   environment: ActivityEnvironment;
   scheduleMode: ActivityScheduleMode;
   visitMinutes: string;
@@ -344,6 +347,30 @@ export function ActivityForm({
               disabled={readOnly}
             />
           </div>
+        </div>
+        <div>
+          <label htmlFor="category" className={labelClassName}>
+            Category
+          </label>
+          <select
+            id="category"
+            className={inputClassName}
+            value={form.category}
+            onChange={(event) =>
+              update("category", event.target.value as ActivityCategory)
+            }
+            disabled={readOnly}
+          >
+            {CATEGORIES.map((category) => (
+              <option key={category.value} value={category.value}>
+                {category.label}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-muted-foreground">
+            The one public category shown as a coloured dot on every listing.
+            Tags stay searchable.
+          </p>
         </div>
         <div>
           <label htmlFor="environment" className={labelClassName}>
@@ -749,6 +776,7 @@ function createInitialState(activity?: Activity): FormState {
     summary: activity?.summary ?? "",
     description: activity?.description ?? "",
     imageUrl: activity?.imageUrl ?? "",
+    category: activity?.category ?? "community",
     environment: activity?.environment ?? "unknown",
     scheduleMode: activity?.scheduleMode ?? "fixed",
     visitMinutes:
@@ -817,6 +845,7 @@ function toActivityInput(form: FormState): ActivityInput {
     summary: emptyToNull(form.summary),
     description: form.description.trim(),
     imageUrl: emptyToNull(form.imageUrl),
+    category: form.category,
     environment: form.environment,
     scheduleMode: form.scheduleMode,
     visitMinutes:

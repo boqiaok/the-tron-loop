@@ -1,6 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
+  ArrayUnique,
+  IsArray,
+  IsBoolean,
   IsEnum,
   IsIn,
   IsInt,
@@ -9,11 +12,11 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
-  Matches,
   Max,
   MaxLength,
   Min,
 } from 'class-validator';
+import { ActivityCategory } from '../enums/activity-category.enum';
 import { ActivityCostType } from '../enums/activity-cost-type.enum';
 import { ActivityStatus } from '../enums/activity-status.enum';
 
@@ -103,28 +106,46 @@ export class ActivityPaginationQueryDto extends ActivityRangeQueryDto {
   longitude?: number;
 
   @ApiPropertyOptional({
-    enum: ['cancelled'],
-    description:
-      'Omit to list published activities, or use cancelled to list cancelled activities',
+    default: false,
+    description: 'Also list cancelled activities alongside published ones',
   })
   @IsOptional()
-  @IsIn(['cancelled'])
-  status?: 'cancelled';
+  @Transform(
+    ({ value }: { value: unknown }) => value === true || value === 'true',
+  )
+  @IsBoolean()
+  includeCancelled = false;
+
+  @ApiPropertyOptional({
+    default: false,
+    description: 'Only occurrences starting at or after 17:00 local time',
+  })
+  @IsOptional()
+  @Transform(
+    ({ value }: { value: unknown }) => value === true || value === 'true',
+  )
+  @IsBoolean()
+  evening = false;
+
+  @ApiPropertyOptional({
+    enum: ActivityCategory,
+    isArray: true,
+    description: 'Comma-separated categories; matches any of them',
+    example: 'workshop,family',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.split(',').filter(Boolean) : value,
+  )
+  @IsArray()
+  @ArrayUnique()
+  @IsEnum(ActivityCategory, { each: true })
+  categories?: ActivityCategory[];
 
   @ApiPropertyOptional({ enum: ActivityCostType })
   @IsOptional()
   @IsEnum(ActivityCostType)
   costType?: ActivityCostType;
-
-  @ApiPropertyOptional({ example: 'family-friendly', maxLength: 100 })
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
-  tag?: string;
 
   @ApiPropertyOptional({ example: 'Hamilton East', maxLength: 120 })
   @Transform(({ value }: { value: unknown }) =>

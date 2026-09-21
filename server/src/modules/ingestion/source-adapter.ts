@@ -1,3 +1,4 @@
+import { ActivityCategory } from '../activities/enums/activity-category.enum';
 import { ActivityCostType } from '../activities/enums/activity-cost-type.enum';
 import { ActivityEnvironment } from '../activities/enums/activity-environment.enum';
 import { ActivityScheduleMode } from '../activities/enums/activity-schedule-mode.enum';
@@ -17,6 +18,7 @@ export interface ImportedActivity {
   summary: string | null;
   description: string;
   imageUrl: string | null;
+  category?: ActivityCategory;
   environment?: ActivityEnvironment;
   scheduleMode?: ActivityScheduleMode;
   visitMinutes?: number | null;

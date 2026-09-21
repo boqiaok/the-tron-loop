@@ -64,6 +64,7 @@ export function toActivityResponse(
     summary: activity.summary,
     description: activity.description,
     imageUrl: activity.imageUrl,
+    category: activity.category,
     environment: activity.environment,
     scheduleMode: activity.scheduleMode,
     visitMinutes: activity.visitMinutes,

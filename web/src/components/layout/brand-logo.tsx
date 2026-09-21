@@ -1,37 +1,22 @@
-import { Waves } from "lucide-react";
-
 import { cn } from "@/lib/utils";
 
-export function BrandLogo({
-  inverse = false,
-  tagline = false,
-}: {
-  inverse?: boolean;
-  tagline?: boolean;
-}) {
+export function BrandLogo({ compact = false }: { compact?: boolean }) {
   return (
-    <span className="flex items-center gap-3">
-      <Waves
+    <span className={cn("flex shrink-0 items-center", compact ? "gap-2" : "gap-2.5")}>
+      <span
         aria-hidden="true"
         className={cn(
-          "size-9 shrink-0 stroke-[1.8]",
-          inverse ? "text-primary-foreground" : "text-primary",
+          "inline-block bg-primary",
+          compact ? "size-[22px] rounded-[7px]" : "size-[26px] rounded-[8px]",
         )}
       />
-      <span className="grid gap-0.5">
-        <span
-          className={cn(
-            "font-heading text-xl leading-none tracking-wide sm:text-2xl",
-            inverse ? "text-primary-foreground" : "text-primary",
-          )}
-        >
-          THE TRON LOOP
-        </span>
-        {tagline && (
-          <span className="text-[0.65rem] text-[var(--gold)]">
-            Your week in Hamilton.
-          </span>
+      <span
+        className={cn(
+          "font-semibold tracking-[-0.02em] text-foreground",
+          compact ? "text-base" : "text-lg",
         )}
+      >
+        The Tron Loop
       </span>
     </span>
   );

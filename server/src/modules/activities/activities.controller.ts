@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ActivitiesService } from './activities.service';
 import { ActivityFilterOptionsResponseDto } from './dto/activity-filter-options-response.dto';
@@ -6,6 +6,7 @@ import {
   ActivityResponseDto,
   PaginatedActivitiesResponseDto,
 } from './dto/activity-response.dto';
+import { ActivitySlugParamDto } from './dto/activity-slug-param.dto';
 import {
   ActivityPaginationQueryDto,
   ActivityRangeQueryDto,
@@ -41,5 +42,14 @@ export class ActivitiesController {
     @Query() query: ActivityPaginationQueryDto,
   ): Promise<PaginatedActivitiesResponseDto> {
     return this.activitiesService.findPublicPage(query);
+  }
+
+  @Get(':slug')
+  @ApiOperation({ summary: 'Get one published or cancelled activity' })
+  @ApiOkResponse({ type: ActivityResponseDto })
+  findOne(
+    @Param() { slug }: ActivitySlugParamDto,
+  ): Promise<ActivityResponseDto> {
+    return this.activitiesService.findPublicBySlug(slug);
   }
 }

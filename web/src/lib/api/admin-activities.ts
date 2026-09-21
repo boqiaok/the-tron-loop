@@ -1,6 +1,7 @@
 import { API_BASE_URL } from "@/lib/api/config";
 import type {
   Activity,
+  ActivityCategory,
   ActivityCostType,
   ActivityEnvironment,
   ActivityScheduleMode,
@@ -24,6 +25,7 @@ export interface ActivityInput {
   summary: string | null;
   description: string;
   imageUrl: string | null;
+  category: ActivityCategory;
   environment: ActivityEnvironment;
   scheduleMode: ActivityScheduleMode;
   visitMinutes: number | null;

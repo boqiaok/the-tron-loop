@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+
 import { DiscoveryWorkspace } from "@/components/discovery/discovery-workspace";
 
-export const metadata: Metadata = { title: "Find activities for you" };
+export const metadata: Metadata = { title: "Plan my day" };
 
-export default function DiscoverPage() {
+export default function PlanPage() {
   return <DiscoveryWorkspace />;
 }

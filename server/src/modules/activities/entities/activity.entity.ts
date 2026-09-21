@@ -10,6 +10,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { ActivityCategory } from '../enums/activity-category.enum';
 import { ActivityCostType } from '../enums/activity-cost-type.enum';
 import { ActivityEnvironment } from '../enums/activity-environment.enum';
 import { ActivityStatus } from '../enums/activity-status.enum';
@@ -23,6 +24,7 @@ import { Source } from '../../ingestion/entities/source.entity';
 @Entity({ name: 'activities' })
 @Index('UQ_activities_slug', ['slug'], { unique: true })
 @Index('IDX_activities_venue_id', ['venueId'])
+@Index('IDX_activities_category', ['category'])
 @Index('UQ_activities_source_external_id', ['sourceId', 'externalId'], {
   unique: true,
   where: '"source_id" IS NOT NULL AND "external_id" IS NOT NULL',
@@ -60,6 +62,14 @@ export class Activity {
 
   @Column({ name: 'image_url', type: 'text', nullable: true })
   imageUrl!: string | null;
+
+  @Column({
+    type: 'enum',
+    enum: ActivityCategory,
+    enumName: 'activity_category',
+    default: ActivityCategory.Community,
+  })
+  category!: ActivityCategory;
 
   @Column({
     type: 'enum',

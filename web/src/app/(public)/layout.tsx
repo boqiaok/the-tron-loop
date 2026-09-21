@@ -5,7 +5,7 @@ export default function PublicLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-[1280px] flex-col border-x bg-background shadow-sm">
+    <div className="flex min-h-screen flex-col bg-background">
       <SiteHeader />
       <div className="flex-1">{children}</div>
       <SiteFooter />
