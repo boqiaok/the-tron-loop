@@ -23,6 +23,36 @@ describe('activity duration inference', () => {
     });
   });
 
+  it('keeps a keyword match fixed when no session is longer than the visit', () => {
+    const talk = {
+      title: 'From Seed To Sprout',
+      description: 'Our monthly talk on growing a pollinator garden',
+      tags: ['community'],
+    };
+    expect(
+      inferActivityScheduling({
+        ...talk,
+        dates: [
+          {
+            startsAt: '2026-09-23T22:30:00.000Z',
+            endsAt: '2026-09-23T23:30:00.000Z',
+          },
+        ],
+      }).scheduleMode,
+    ).toBe('fixed');
+    expect(
+      inferActivityScheduling({
+        ...talk,
+        dates: [
+          {
+            startsAt: '2026-09-23T21:00:00.000Z',
+            endsAt: '2026-09-24T04:00:00.000Z',
+          },
+        ],
+      }),
+    ).toMatchObject({ scheduleMode: 'window', visitMinutes: 90 });
+  });
+
   it('keeps ordinary sessions fixed', () => {
     expect(
       inferActivityScheduling({

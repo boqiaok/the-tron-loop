@@ -31,7 +31,12 @@ export function earliestFit<T extends PlanningItem>(
   const start = new Date(
     Math.max(notBefore.getTime(), item.sourceStart.getTime()),
   );
-  const end = new Date(start.getTime() + item.visitMinutes * 60_000);
+  // A visit never outlasts the session: a one-hour talk labelled "~90 min"
+  // still fits as the whole hour instead of never fitting at all.
+  const sessionMinutes =
+    (item.sourceEnd.getTime() - item.sourceStart.getTime()) / 60_000;
+  const visitMinutes = Math.min(item.visitMinutes, sessionMinutes);
+  const end = new Date(start.getTime() + visitMinutes * 60_000);
   const latest = Math.min(notAfter.getTime(), item.sourceEnd.getTime());
   return end.getTime() <= latest ? { item, start, end } : null;
 }

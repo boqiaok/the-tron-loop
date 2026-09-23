@@ -1,11 +1,23 @@
 import { ACTIVITY_TIME_ZONE } from "../dates/week-range";
-import { formatDayLabel, getDayKey } from "./format";
+import { formatDayLabel, formatDayRange, formatTime, getDayKey } from "./format";
 import type { Activity, ActivityDate } from "@/types/activity";
 
 export interface Occurrence {
   activity: Activity;
+  /** The first session this row stands for; the row links to it. */
   date: ActivityDate;
+  /** Every session folded into this row, in time order. */
+  sessions?: ActivityDate[];
+  /** Distinct days the activity runs on, set for ongoing rows. */
+  ongoingDays?: number;
 }
+
+/**
+ * Activities on at least this many days of the listed range (exhibitions,
+ * competitions, festival weeks) are listed once as ongoing, not every day.
+ */
+export const ONGOING_MIN_DAYS = 4;
+export const ONGOING_GROUP_KEY = "ongoing";
 
 export interface OccurrenceGroup {
   key: string;
@@ -24,26 +36,55 @@ export function isEveningStart(value: string): boolean {
 }
 
 /**
- * Expands activities into one row per occurrence and groups them by local
- * day. Activities keep the order the API returned them in within a day, so a
+ * Groups activities by local day with one row per activity per day; several
+ * sessions on one day fold into that row. Activities running on
+ * ONGOING_MIN_DAYS or more days lead the list once, as an "Ongoing" group.
+ * Activities keep the order the API returned them in within a group, so a
  * distance sort survives grouping; otherwise rows are ordered by start time.
  */
 export function groupByDay(
   activities: Activity[],
   options: { keepOrder?: boolean; eveningOnly?: boolean } = {},
 ): OccurrenceGroup[] {
-  const occurrences = activities.flatMap((activity, index) =>
-    activity.dates
-      .filter((date) => !options.eveningOnly || isEveningStart(date.startsAt))
-      .map((date) => ({ activity, date, index })),
-  );
-  const groups = new Map<string, OccurrenceGroup>();
+  type Row = { occurrence: Occurrence; index: number };
+  const ongoing: Row[] = [];
+  const rows: Row[] = [];
 
-  for (const occurrence of [...occurrences].sort(
-    (left, right) =>
-      left.date.startsAt.localeCompare(right.date.startsAt) ||
-      left.index - right.index,
-  )) {
+  activities.forEach((activity, index) => {
+    const dates = activity.dates
+      .filter((date) => !options.eveningOnly || isEveningStart(date.startsAt))
+      .sort((left, right) => left.startsAt.localeCompare(right.startsAt));
+    const byDay = new Map<string, ActivityDate[]>();
+    for (const date of dates) {
+      const key = getDayKey(date.startsAt);
+      byDay.set(key, [...(byDay.get(key) ?? []), date]);
+    }
+
+    if (byDay.size >= ONGOING_MIN_DAYS) {
+      ongoing.push({
+        occurrence: {
+          activity,
+          date: dates[0],
+          sessions: dates,
+          ongoingDays: byDay.size,
+        },
+        index,
+      });
+      return;
+    }
+    for (const sessions of byDay.values()) {
+      rows.push({ occurrence: { activity, date: sessions[0], sessions }, index });
+    }
+  });
+
+  const byOrder = (left: Row, right: Row) =>
+    options.keepOrder
+      ? left.index - right.index
+      : left.occurrence.date.startsAt.localeCompare(
+          right.occurrence.date.startsAt,
+        ) || left.index - right.index;
+  const groups = new Map<string, OccurrenceGroup>();
+  for (const { occurrence } of [...rows].sort(byOrder)) {
     const key = getDayKey(occurrence.date.startsAt);
     let group = groups.get(key);
     if (!group) {
@@ -57,17 +98,39 @@ export function groupByDay(
     group.occurrences.push(occurrence);
   }
 
-  if (options.keepOrder) {
-    const order = new Map(occurrences.map((item) => [item.date.id, item.index]));
-    for (const group of groups.values()) {
-      group.occurrences.sort(
-        (left, right) =>
-          (order.get(left.date.id) ?? 0) - (order.get(right.date.id) ?? 0),
-      );
-    }
-  }
+  const dayGroups = [...groups.values()].sort((left, right) =>
+    left.key.localeCompare(right.key),
+  );
+  return ongoing.length
+    ? [
+        {
+          key: ONGOING_GROUP_KEY,
+          label: "Ongoing",
+          occurrences: ongoing.sort(byOrder).map((row) => row.occurrence),
+        },
+        ...dayGroups,
+      ]
+    : dayGroups;
+}
 
-  return [...groups.values()];
+/** "Sat 26 – Sun 27 Sep" for the days an ongoing row covers. */
+export function formatSessionSpan(sessions: ActivityDate[]): string {
+  const last = sessions[sessions.length - 1];
+  return formatDayRange({
+    from: sessions[0].startsAt,
+    to: new Date(new Date(last.startsAt).getTime() + 1).toISOString(),
+  });
+}
+
+/** Start times of the sessions, e.g. "18:00 · 18:30 · 19:00 +2". */
+export function formatSessionTimes(sessions: ActivityDate[], max = 3): string {
+  const times = [
+    ...new Set(
+      sessions.filter((date) => !date.isAllDay).map((date) => formatTime(date.startsAt)),
+    ),
+  ].sort();
+  const shown = times.slice(0, max).join(" · ");
+  return times.length > max ? `${shown} +${times.length - max}` : shown;
 }
 
 const WEEKDAYS = [

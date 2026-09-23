@@ -11,6 +11,7 @@ export function inferActivityScheduling(input: {
   title: string;
   description: string;
   tags: string[];
+  dates?: Array<{ startsAt: string; endsAt: string | null }>;
 }): {
   scheduleMode: ActivityScheduleMode;
   visitMinutes: number | null;
@@ -19,7 +20,10 @@ export function inferActivityScheduling(input: {
   const text = `${input.title} ${input.description} ${input.tags.join(' ')}`;
   const explicit = parseVisitMinutes(text);
   const configured = WINDOW_DEFAULTS.find(({ pattern }) => pattern.test(text));
-  if (!configured) {
+  const visitMinutes = explicit ?? configured?.minutes ?? 0;
+  // Drop-in only makes sense when a session is open longer than a visit;
+  // "gardening talk, 10:30–11:30" is a fixed session despite the keyword.
+  if (!configured || !hasRoomForVisit(input.dates, visitMinutes)) {
     return {
       scheduleMode: ActivityScheduleMode.Fixed,
       visitMinutes: null,
@@ -28,7 +32,7 @@ export function inferActivityScheduling(input: {
   }
   return {
     scheduleMode: ActivityScheduleMode.Window,
-    visitMinutes: explicit ?? configured.minutes,
+    visitMinutes,
     durationSource:
       explicit === null
         ? DurationSource.CategoryDefault
@@ -51,4 +55,16 @@ export function parseVisitMinutes(value: string): number | null {
 
 function clampMinutes(value: number): number | null {
   return Number.isFinite(value) && value >= 15 && value <= 720 ? value : null;
+}
+
+function hasRoomForVisit(
+  dates: Array<{ startsAt: string; endsAt: string | null }> | undefined,
+  visitMinutes: number,
+): boolean {
+  const lengths = (dates ?? [])
+    .filter((date) => date.endsAt)
+    .map(
+      (date) => (Date.parse(date.endsAt!) - Date.parse(date.startsAt)) / 60_000,
+    );
+  return !lengths.length || Math.max(...lengths) > visitMinutes;
 }

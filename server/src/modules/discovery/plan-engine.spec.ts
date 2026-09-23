@@ -40,6 +40,24 @@ describe('plan engine', () => {
     ).toBeNull();
   });
 
+  it('fits a visit longer than its session as the whole session', () => {
+    const talk = {
+      id: 'talk',
+      scheduleMode: 'window' as const,
+      sourceStart: new Date('2026-09-19T22:30:00Z'),
+      sourceEnd: new Date('2026-09-19T23:30:00Z'),
+      visitMinutes: 90,
+    };
+    const fit = earliestFit(
+      talk,
+      new Date('2026-09-19T12:00:00Z'),
+      new Date('2026-09-20T11:59:00Z'),
+    );
+
+    expect(fit?.start.toISOString()).toBe('2026-09-19T22:30:00.000Z');
+    expect(fit?.end.toISOString()).toBe('2026-09-19T23:30:00.000Z');
+  });
+
   it('uses one validation rule for overlap and travel conflicts', () => {
     const conflicts = validatePlan(
       [

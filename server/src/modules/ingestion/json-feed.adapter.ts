@@ -4,29 +4,20 @@ import { ActivityCategory } from '../activities/enums/activity-category.enum';
 import { ActivityEnvironment } from '../activities/enums/activity-environment.enum';
 import { Source } from './entities/source.entity';
 import { ImportedActivity, SourceAdapter } from './source-adapter';
+import {
+  fetchJson,
+  isRecord,
+  parseHttpUrl,
+  readOptionalString,
+} from './source-http';
 
 @Injectable()
 export class JsonFeedAdapter implements SourceAdapter {
   async fetch(source: Source): Promise<Record<string, unknown>[]> {
-    const response = await fetch(source.feedUrl, {
-      headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(15_000),
+    const payload = await fetchJson(source.feedUrl, {
+      label: 'Source',
+      timeoutMs: 15_000,
     });
-    if (!response.ok) {
-      throw new BadRequestException(`Source returned HTTP ${response.status}`);
-    }
-
-    const text = await response.text();
-    if (text.length > 2_000_000) {
-      throw new BadRequestException('Source response exceeds 2 MB');
-    }
-
-    let payload: unknown;
-    try {
-      payload = JSON.parse(text);
-    } catch {
-      throw new BadRequestException('Source did not return valid JSON');
-    }
 
     if (
       !isRecord(payload) ||
@@ -133,21 +124,6 @@ function readRequiredString(
   return value;
 }
 
-function readOptionalString(
-  record: Record<string, unknown>,
-  key: string,
-  max = 10_000,
-): string | null {
-  const value = record[key];
-  if (value === undefined || value === null || value === '') return null;
-  if (typeof value !== 'string' || value.trim().length > max) {
-    throw new BadRequestException(
-      `${key} must be a string no longer than ${max} characters`,
-    );
-  }
-  return value.trim();
-}
-
 function readRequiredDate(
   record: Record<string, unknown>,
   key: string,
@@ -176,16 +152,9 @@ function readOptionalUrl(
 ): string | null {
   const value = readOptionalString(record, key, 2_000);
   if (!value) return null;
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new BadRequestException(`${key} must be an HTTP(S) URL`);
-  }
-  if (!['http:', 'https:'].includes(url.protocol)) {
-    throw new BadRequestException(`${key} must be an HTTP(S) URL`);
-  }
-  return url.toString();
+  const url = parseHttpUrl(value);
+  if (!url) throw new BadRequestException(`${key} must be an HTTP(S) URL`);
+  return url;
 }
 
 function readOptionalNumber(
@@ -217,8 +186,4 @@ function readOptionalCoordinate(
     throw new BadRequestException(`${key} must be between ${min} and ${max}`);
   }
   return value;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

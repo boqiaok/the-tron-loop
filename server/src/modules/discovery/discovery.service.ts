@@ -27,6 +27,12 @@ const SPEED_KMH: Record<TravelMode, number> = {
   [TravelMode.Driving]: 30,
   [TravelMode.Walking]: 4.8,
 };
+// Assumed trip across Hamilton when a venue has no coordinates, so a missing
+// location makes the estimate cautious instead of making the plan impossible.
+const UNKNOWN_LOCATION_TRAVEL_MINUTES: Record<TravelMode, number> = {
+  [TravelMode.Driving]: 20,
+  [TravelMode.Walking]: 45,
+};
 
 export type RecommendationReasonCode =
   | 'INTEREST_MATCH'
@@ -451,7 +457,6 @@ export class DiscoveryService {
       const previous = items[index - 1];
       const current = items[index];
       const travel = estimateTravel(previous, current, intent.travelMode);
-      if (travel === null) return null;
       const availableMinutes = Math.floor(
         (Date.parse(current.date.startsAt) - Date.parse(previous.date.endsAt)) /
           60_000,
@@ -465,6 +470,7 @@ export class DiscoveryService {
         arrivalBufferMinutes: ARRIVAL_BUFFER_MINUTES,
         freeMinutes: availableMinutes - travel - ARRIVAL_BUFFER_MINUTES,
         mode: intent.travelMode,
+        locationUnknown: !hasKnownRoute(previous, current),
       });
     }
     const coveredInterests = [
@@ -547,6 +553,7 @@ interface EvaluatedPlan {
     arrivalBufferMinutes: number;
     freeMinutes: number;
     mode: TravelMode;
+    locationUnknown: boolean;
   }>;
   totalScore: number;
   totalTravelMinutes: number;
@@ -1083,11 +1090,27 @@ function mapDate(date: ActivityDate) {
   };
 }
 
+/** True when travel between the two stops is computed rather than assumed. */
+export function hasKnownRoute(
+  from: RecommendationCandidate,
+  to: RecommendationCandidate,
+): boolean {
+  if (from.activity.venue?.id === to.activity.venue?.id) return true;
+  const left = from.activity.venue;
+  const right = to.activity.venue;
+  return (
+    left?.latitude != null &&
+    left.longitude != null &&
+    right?.latitude != null &&
+    right.longitude != null
+  );
+}
+
 export function estimateTravel(
   from: RecommendationCandidate,
   to: RecommendationCandidate,
   mode: TravelMode,
-): number | null {
+): number {
   if (from.activity.venue?.id === to.activity.venue?.id) return 0;
   const left = from.activity.venue;
   const right = to.activity.venue;
@@ -1097,7 +1120,7 @@ export function estimateTravel(
     right?.latitude == null ||
     right.longitude == null
   )
-    return null;
+    return UNKNOWN_LOCATION_TRAVEL_MINUTES[mode];
   const distance = haversineKm(
     left.latitude,
     left.longitude,

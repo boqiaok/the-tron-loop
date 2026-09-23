@@ -1,18 +1,25 @@
 import { TZDateMini } from '@date-fns/tz';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ActivityCategory } from '../activities/enums/activity-category.enum';
 import { ActivityCostType } from '../activities/enums/activity-cost-type.enum';
 import { Source } from './entities/source.entity';
+import { getImportWindow, isWithinImportWindow } from './import-window';
+import { inferCategory } from './infer-category';
 import {
   ImportedActivity,
   ImportedActivityDate,
   SourceAdapter,
 } from './source-adapter';
+import {
+  delay,
+  fetchJson,
+  isRecord,
+  parseHttpUrl,
+  readOptionalString,
+} from './source-http';
 
 const PAGE_SIZE = 20;
 const MAX_EVENTS = 500;
-const IMPORT_WINDOW_DAYS = 21;
 const REQUEST_INTERVAL_MS = 1_050;
 
 @Injectable()
@@ -29,7 +36,7 @@ export class EventfindaAdapter implements SourceAdapter {
     }
 
     const authorization = `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`;
-    const dateRange = getDateRange();
+    const window = getImportWindow();
     const events: Record<string, unknown>[] = [];
     let total = 0;
     let offset = 0;
@@ -40,22 +47,17 @@ export class EventfindaAdapter implements SourceAdapter {
         rows: String(PAGE_SIZE),
         offset: String(offset),
         location_slug: 'hamilton',
-        start_date: dateRange.start,
-        end_date: dateRange.end,
+        start_date: window.startDate,
+        end_date: window.endDate,
         order: 'date',
       }).toString();
 
-      const response = await fetch(url, {
-        headers: { Accept: 'application/json', Authorization: authorization },
-        signal: AbortSignal.timeout(20_000),
-      });
-      if (!response.ok) {
-        throw new BadRequestException(
-          `Eventfinda returned HTTP ${response.status}`,
-        );
-      }
-
-      const page = await readPage(response);
+      const page = readPage(
+        await fetchJson(url, {
+          label: 'Eventfinda',
+          headers: { Authorization: authorization },
+        }),
+      );
       total = Math.min(page.total, MAX_EVENTS);
       events.push(...page.events.slice(0, MAX_EVENTS - events.length));
       offset += PAGE_SIZE;
@@ -72,22 +74,10 @@ export class EventfindaAdapter implements SourceAdapter {
   }
 }
 
-async function readPage(response: Response): Promise<{
+function readPage(payload: unknown): {
   total: number;
   events: Record<string, unknown>[];
-}> {
-  const text = await response.text();
-  if (text.length > 2_000_000) {
-    throw new BadRequestException('Eventfinda response exceeds 2 MB');
-  }
-
-  let payload: unknown;
-  try {
-    payload = JSON.parse(text);
-  } catch {
-    throw new BadRequestException('Eventfinda did not return valid JSON');
-  }
-
+} {
   if (!isRecord(payload) || !Array.isArray(payload.events)) {
     throw new BadRequestException('Eventfinda returned an unexpected response');
   }
@@ -105,6 +95,7 @@ async function readPage(response: Response): Promise<{
 }
 
 function mapEventfindaActivity(raw: Record<string, unknown>): ImportedActivity {
+  const window = getImportWindow();
   const externalId = String(readNumber(raw, 'id'));
   const title = readString(raw, 'name', 200);
   const timezone =
@@ -114,7 +105,7 @@ function mapEventfindaActivity(raw: Record<string, unknown>): ImportedActivity {
     sessions
       .filter((session) => session.is_cancelled !== true)
       .map((session) => mapSession(session, timezone))
-      .filter((date) => isWithinImportWindow(date.startsAt)),
+      .filter((date) => isWithinImportWindow(date.startsAt, window)),
   );
 
   if (sessions.length === 0 && raw.is_cancelled !== true) {
@@ -177,27 +168,6 @@ function mapEventfindaActivity(raw: Record<string, unknown>): ImportedActivity {
     isCancelled: raw.is_cancelled === true || dates.length === 0,
     raw,
   };
-}
-
-export function inferCategory(
-  title: string,
-  sourceCategory: string | null,
-): ActivityCategory {
-  const text = `${title} ${sourceCategory ?? ''}`.toLowerCase();
-  if (/\bmarkets?\b/.test(text)) return ActivityCategory.Market;
-  if (/\b(workshops?|class(es)?|courses?|lessons?)\b/.test(text))
-    return ActivityCategory.Workshop;
-  if (/\b(kids?|family|families|children)\b/.test(text))
-    return ActivityCategory.Family;
-  if (/\b(outdoors?|sports?|nature|walks?|garden|parks?)\b/.test(text))
-    return ActivityCategory.Outdoors;
-  if (
-    /\b(music|concerts?|gigs?|art|arts|exhibitions?|theatre|film|comedy|dance|performances?)\b/.test(
-      text,
-    )
-  )
-    return ActivityCategory.ArtsMusic;
-  return ActivityCategory.Community;
 }
 
 function mapSession(
@@ -263,16 +233,6 @@ function uniqueDates(dates: ImportedActivityDate[]): ImportedActivityDate[] {
   ].sort((left, right) => left.startsAt.localeCompare(right.startsAt));
 }
 
-function isWithinImportWindow(value: string): boolean {
-  const range = getDateRange();
-  const start = parseLocalDateTime(
-    `${range.start} 00:00:00`,
-    'Pacific/Auckland',
-  );
-  const end = parseLocalDateTime(`${range.end} 23:59:59`, 'Pacific/Auckland');
-  return value >= start && value <= end;
-}
-
 function readPrimaryImage(collection: unknown): string | null {
   const images = readCollection(collection, 'images');
   const image =
@@ -312,19 +272,6 @@ function readString(
     throw new BadRequestException(`Eventfinda ${key} is required`);
   }
   return value;
-}
-
-function readOptionalString(
-  record: Record<string, unknown>,
-  key: string,
-  max = 10_000,
-): string | null {
-  const value = record[key];
-  if (value === null || value === undefined || value === '') return null;
-  if (typeof value !== 'string' || value.trim().length > max) {
-    throw new BadRequestException(`Eventfinda ${key} is invalid`);
-  }
-  return value.trim();
 }
 
 function readNumber(record: Record<string, unknown>, key: string): number {
@@ -370,34 +317,7 @@ function readOptionalUrl(
 }
 
 function validateUrl(value: string): string {
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new BadRequestException('Eventfinda returned an invalid URL');
-  }
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
-    throw new BadRequestException('Eventfinda returned an invalid URL');
-  }
-  return url.toString();
-}
-
-function getDateRange(): { start: string; end: string } {
-  const start = new TZDateMini(Date.now(), 'Pacific/Auckland');
-  const end = new TZDateMini(start.getTime(), 'Pacific/Auckland');
-  end.setDate(end.getDate() + IMPORT_WINDOW_DAYS - 1);
-  return { start: formatDate(start), end: formatDate(end) };
-}
-
-function formatDate(date: Date): string {
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-function delay(milliseconds: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+  const url = parseHttpUrl(value);
+  if (!url) throw new BadRequestException('Eventfinda returned an invalid URL');
+  return url;
 }

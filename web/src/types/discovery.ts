@@ -65,6 +65,8 @@ export interface TravelSegment {
   arrivalBufferMinutes: number;
   freeMinutes: number;
   mode: TravelMode;
+  /** A venue has no coordinates, so the minutes are an assumed trip. */
+  locationUnknown: boolean;
 }
 
 export interface ItineraryResponse {

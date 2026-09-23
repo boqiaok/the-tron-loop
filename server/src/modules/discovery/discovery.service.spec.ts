@@ -7,6 +7,7 @@ import { ActivityStatus } from '../activities/enums/activity-status.enum';
 import {
   DiscoveryService,
   estimateTravel,
+  hasKnownRoute,
   haversineKm,
   intentWindow,
   RecommendationCandidate,
@@ -67,10 +68,10 @@ describe('discovery planning rules', () => {
     );
 
     expect(driving).toBeGreaterThan(0);
-    expect(walking!).toBeGreaterThan(driving!);
+    expect(walking).toBeGreaterThan(driving);
   });
 
-  it('allows zero travel at one venue and rejects missing coordinates', () => {
+  it('allows zero travel at one venue and assumes a trip across town for missing coordinates', () => {
     expect(
       estimateTravel(
         candidate('same', null, null),
@@ -78,13 +79,19 @@ describe('discovery planning rules', () => {
         TravelMode.Driving,
       ),
     ).toBe(0);
+    const unknown = [
+      candidate('a', null, null),
+      candidate('b', -37.79, 175.28),
+    ] as const;
+    expect(estimateTravel(...unknown, TravelMode.Driving)).toBe(20);
+    expect(estimateTravel(...unknown, TravelMode.Walking)).toBe(45);
+    expect(hasKnownRoute(...unknown)).toBe(false);
     expect(
-      estimateTravel(
-        candidate('a', null, null),
+      hasKnownRoute(
+        candidate('a', -37.78, 175.27),
         candidate('b', -37.79, 175.28),
-        TravelMode.Driving,
       ),
-    ).toBeNull();
+    ).toBe(true);
   });
 
   it('filters required conditions, ranks preferences and explains the result', async () => {
@@ -274,6 +281,34 @@ describe('discovery planning rules', () => {
         (item) => item.activity.slug,
       ),
     ).toEqual(['craft', 'later']);
+  });
+
+  it('plans a kept stop whose venue has no coordinates, with an assumed trip', async () => {
+    const dance = activityDate(
+      'dance',
+      '2026-09-19T02:00:00.000Z',
+      '2026-09-19T03:30:00.000Z',
+    );
+    dance.activity.venue.latitude = null as never;
+    dance.activity.venue.longitude = null as never;
+    const musical = activityDate(
+      'musical',
+      '2026-09-19T07:30:00.000Z',
+      '2026-09-19T10:00:00.000Z',
+    );
+    const service = serviceWithDates([dance, musical]);
+
+    const plan = await service.itinerary({
+      intent: baseIntent({ availableFrom: '09:00', availableTo: '23:00' }),
+      targetCount: 2,
+      lockedActivityDateIds: [dance.id, musical.id],
+      excludedActivityDateIds: [],
+    });
+
+    expect(plan.status).toBe('complete');
+    expect(plan.travelSegments).toEqual([
+      expect.objectContaining({ estimatedMinutes: 20, locationUnknown: true }),
+    ]);
   });
 
   it('schedules a window activity for its visit duration instead of its opening hours', async () => {

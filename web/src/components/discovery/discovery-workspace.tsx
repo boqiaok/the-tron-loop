@@ -20,6 +20,7 @@ import {
   PLAN_STATE_KEY,
   type SavedPlanState,
 } from "@/lib/discovery/plan-request";
+import { explainLeftOut, isOtherDay } from "@/lib/discovery/plan-fit";
 import { cn } from "@/lib/utils";
 import type { ActivityEnvironment } from "@/types/activity";
 import type {
@@ -66,6 +67,7 @@ export function DiscoveryWorkspace() {
   const [excluded, setExcluded] = useState<string[]>([]);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
+  const [planNotice, setPlanNotice] = useState<string>();
   const [replacement, setReplacement] = useState<ReplacementState>();
   const planPanel = useRef<HTMLElement>(null);
   const plannedActivityDateIds = new Set(
@@ -201,6 +203,7 @@ export function DiscoveryWorkspace() {
     const nextExcluded = options?.excluded ?? excluded;
     setPlanning(true);
     setError(undefined);
+    setPlanNotice(undefined);
     setReplacement(undefined);
     try {
       const response = await buildItinerary({
@@ -211,8 +214,21 @@ export function DiscoveryWorkspace() {
         excludedActivityDateIds: nextExcluded,
       });
       setPlan(response);
-      setLocked(nextLocked);
       setExcluded(nextExcluded);
+      const stops = response.activities;
+      if (stops) {
+        // Keep only what the planner could place, and say why the rest is out;
+        // a stale lock would make every later request fail the same way.
+        const planned = new Set(stops.map((item) => item.date.id));
+        setLocked(nextLocked.filter((id) => planned.has(id)));
+        const leftOut = nextLocked
+          .filter((id) => !planned.has(id))
+          .map((id) => result?.items.find((item) => item.date.id === id))
+          .filter((item): item is Recommendation => item !== undefined);
+        if (leftOut.length) {
+          setPlanNotice(leftOut.map((item) => explainLeftOut(item, stops)).join(" "));
+        }
+      }
       // Remember the chosen stops so the plan survives a visit to a detail page.
       saveState({
         intent: planIntent,
@@ -228,6 +244,12 @@ export function DiscoveryWorkspace() {
   }
 
   function addToPlan(id: string) {
+    if (intent && locked.length >= intent.targetActivityCount) {
+      setPlanNotice(
+        `Your plan is full at ${intent.targetActivityCount} stops. Remove one before adding another.`,
+      );
+      return;
+    }
     void createPlan({
       locked: [...new Set([...locked, id])],
       excluded: excluded.filter((value) => value !== id),
@@ -449,6 +471,7 @@ export function DiscoveryWorkspace() {
                 intent={intent}
                 scope={scope}
                 added={plannedActivityDateIds.has(item.date.id)}
+                otherDay={isOtherDay(item, plan?.activities ?? [])}
                 busy={planning}
                 onAdd={() => addToPlan(item.date.id)}
                 onRemove={() => dropFromPlan(item.date.id)}
@@ -474,6 +497,7 @@ export function DiscoveryWorkspace() {
               title={dayTitle}
               intent={intent}
               plan={plan}
+              notice={planNotice}
               planning={planning}
               locked={locked}
               replacement={replacement}
@@ -955,6 +979,7 @@ function RecommendationCard({
   intent,
   scope,
   added,
+  otherDay,
   busy,
   onAdd,
   onRemove,
@@ -963,6 +988,7 @@ function RecommendationCard({
   intent: DiscoveryIntent;
   scope: DiscoverySearchScope;
   added: boolean;
+  otherDay: boolean;
   busy: boolean;
   onAdd: () => void;
   onRemove: () => void;
@@ -981,6 +1007,7 @@ function RecommendationCard({
   )}`;
   const reasons = item.reasons.map(reasonLabel);
   if (scope === "day") reasons.push(`Inside your ${shortWindow(intent)} window`);
+  const day = formatDayLabel(date.sourceStartsAt ?? date.startsAt);
 
   const action = added ? (
     <button
@@ -992,6 +1019,13 @@ function RecommendationCard({
     >
       Added ✓
     </button>
+  ) : otherDay ? (
+    <span
+      title="Your plan covers one day. Remove its stops to plan this day instead."
+      className="rounded-full border border-dashed px-[18px] py-[9px] text-sm font-medium whitespace-nowrap text-muted-foreground"
+    >
+      {day} · other day
+    </span>
   ) : (
     <button
       type="button"
@@ -1101,6 +1135,7 @@ function PlanPanel({
   title,
   intent,
   plan,
+  notice,
   planning,
   locked,
   replacement,
@@ -1116,6 +1151,7 @@ function PlanPanel({
   title: string;
   intent: DiscoveryIntent;
   plan?: ItineraryResponse;
+  notice?: string;
   planning: boolean;
   locked: string[];
   replacement?: ReplacementState;
@@ -1165,6 +1201,11 @@ function PlanPanel({
         <>
           {plan.status !== "complete" || !stops.length ? (
             <p className="text-sm text-body">{plan.message}</p>
+          ) : null}
+          {notice ? (
+            <p role="status" className="rounded-[10px] bg-secondary px-3 py-2.5 text-[13px] leading-normal text-body">
+              {notice}
+            </p>
           ) : null}
           {stops.length ? (
             <ol className="flex flex-col">
@@ -1290,7 +1331,9 @@ function TravelRow({ segment }: { segment: TravelSegment }) {
     <div className="grid grid-cols-[52px_1fr] gap-3">
       <span />
       <div className="-ml-1.5 border-l-2 border-dashed border-[#D4D2CB] pb-3.5 pl-3.5 text-[13px] text-muted-foreground">
+        {segment.locationUnknown ? "~" : ""}
         {segment.estimatedMinutes} min {segment.mode === "walking" ? "walk" : "drive"}
+        {segment.locationUnknown ? " (venue not mapped, assumed)" : ""}
         {segment.freeMinutes ? ` · ${segment.freeMinutes} min free before the next start` : ""}
       </div>
     </div>

@@ -151,7 +151,7 @@ export interface AdminSession {
 export interface ActivitySource {
   id: string;
   name: string;
-  sourceType: "json_feed" | "eventfinda";
+  sourceType: "json_feed" | "eventfinda" | "hamilton_libraries";
   feedUrl: string;
   enabled: boolean;
   scheduleHours: number;

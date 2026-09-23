@@ -14,6 +14,19 @@ import {
   type ImportRun,
 } from "@/lib/api/admin-activities";
 
+const SOURCE_TYPE_LABELS: Record<ActivitySource["sourceType"], string> = {
+  eventfinda: "Eventfinda",
+  hamilton_libraries: "Hamilton Libraries",
+  json_feed: "JSON feed",
+};
+
+// Built-in sources have a fixed address; JSON feeds need one entered.
+const DEFAULT_FEED_URLS: Record<ActivitySource["sourceType"], string> = {
+  eventfinda: "https://api.eventfinda.co.nz/v2/events.json",
+  hamilton_libraries: "https://hamiltonlibraries.co.nz/all-events/whats-on",
+  json_feed: "",
+};
+
 const inputClassName =
   "min-h-10 w-full rounded-md border bg-white px-3 py-2 text-sm shadow-xs outline-none transition focus:border-ring focus:ring-3 focus:ring-ring/20";
 
@@ -30,9 +43,7 @@ export function SourceManager({
   const [error, setError] = useState<string | null>(null);
   const [sourceType, setSourceType] =
     useState<ActivitySource["sourceType"]>("eventfinda");
-  const [feedUrl, setFeedUrl] = useState(
-    "https://api.eventfinda.co.nz/v2/events.json",
-  );
+  const [feedUrl, setFeedUrl] = useState(DEFAULT_FEED_URLS.eventfinda);
 
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -49,7 +60,7 @@ export function SourceManager({
       });
       form.reset();
       setSourceType("eventfinda");
-      setFeedUrl("https://api.eventfinda.co.nz/v2/events.json");
+      setFeedUrl(DEFAULT_FEED_URLS.eventfinda);
       router.refresh();
     } catch (caught) {
       setError(
@@ -113,16 +124,15 @@ export function SourceManager({
                 const nextType = event.target
                   .value as ActivitySource["sourceType"];
                 setSourceType(nextType);
-                setFeedUrl(
-                  nextType === "eventfinda"
-                    ? "https://api.eventfinda.co.nz/v2/events.json"
-                    : "",
-                );
+                setFeedUrl(DEFAULT_FEED_URLS[nextType]);
               }}
               className={`${inputClassName} mt-1.5`}
             >
-              <option value="eventfinda">Eventfinda</option>
-              <option value="json_feed">JSON feed</option>
+              {Object.entries(SOURCE_TYPE_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
             </select>
           </label>
           <label className="text-sm font-medium">
@@ -133,7 +143,7 @@ export function SourceManager({
               type="url"
               value={feedUrl}
               onChange={(event) => setFeedUrl(event.target.value)}
-              readOnly={sourceType === "eventfinda"}
+              readOnly={sourceType !== "json_feed"}
               placeholder="https://example.com/events.json"
               className={`${inputClassName} mt-1.5`}
             />
@@ -172,9 +182,7 @@ export function SourceManager({
                   <div className="flex items-center gap-2">
                     <h3 className="font-semibold">{source.name}</h3>
                     <Badge variant="outline">
-                      {source.sourceType === "eventfinda"
-                        ? "Eventfinda"
-                        : "JSON feed"}
+                      {SOURCE_TYPE_LABELS[source.sourceType]}
                     </Badge>
                     <Badge variant={source.enabled ? "default" : "secondary"}>
                       {source.enabled ? "Enabled" : "Paused"}

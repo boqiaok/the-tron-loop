@@ -12,6 +12,7 @@ import { IngestionController } from './ingestion.controller';
 import { IngestionScheduler } from './ingestion.scheduler';
 import { IngestionService } from './ingestion.service';
 import { EventfindaAdapter } from './eventfinda.adapter';
+import { HamiltonLibrariesAdapter } from './hamilton-libraries.adapter';
 import { JsonFeedAdapter } from './json-feed.adapter';
 
 @Module({
@@ -32,6 +33,7 @@ import { JsonFeedAdapter } from './json-feed.adapter';
     IngestionService,
     IngestionScheduler,
     EventfindaAdapter,
+    HamiltonLibrariesAdapter,
     JsonFeedAdapter,
   ],
 })

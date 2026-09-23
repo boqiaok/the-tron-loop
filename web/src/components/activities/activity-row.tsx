@@ -10,7 +10,12 @@ import {
   formatVenueShort,
   getCostLabel,
 } from "@/lib/activities/format";
-import { formatCadence, type Occurrence } from "@/lib/activities/occurrences";
+import {
+  formatCadence,
+  formatSessionSpan,
+  formatSessionTimes,
+  type Occurrence,
+} from "@/lib/activities/occurrences";
 import { cn } from "@/lib/utils";
 
 /**
@@ -25,7 +30,14 @@ export function ActivityRow({
   occurrence: Occurrence;
   recurring?: boolean;
 }) {
-  const { activity, date } = occurrence;
+  const { activity, date, ongoingDays } = occurrence;
+  const sessions = occurrence.sessions ?? [date];
+  const time = describeTime(occurrence);
+  const sessionMeta = ongoingDays
+    ? formatSessionSpan(sessions)
+    : sessions.length > 1
+      ? formatSessionTimes(sessions)
+      : null;
   const cancelled = activity.status === "cancelled";
   const cost = getCostLabel(activity);
   const venue = formatVenue(activity);
@@ -52,16 +64,16 @@ export function ActivityRow({
             cancelled && "text-muted-foreground line-through",
           )}
         >
-          {date.isAllDay ? "All day" : formatTime(date.startsAt)}
+          {time.primary}
         </span>
-        {!date.isAllDay && date.endsAt ? (
+        {time.secondary ? (
           <span
             className={cn(
               "text-xs text-muted-foreground md:text-[13px]",
               cancelled && "text-[#A8ABB1]",
             )}
           >
-            {formatTime(date.endsAt)}
+            {time.secondary}
           </span>
         ) : null}
       </span>
@@ -96,6 +108,7 @@ export function ActivityRow({
               <span className="hidden flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-meta md:flex">
                 <CategoryLabel category={activity.category} />
                 {venue ? <span>{venue}</span> : null}
+                {sessionMeta ? <span>{sessionMeta}</span> : null}
                 {distance ? <span>{distance}</span> : null}
                 {recurring ? <span>{formatCadence(date)}</span> : null}
                 {visit ? <span>{visit}</span> : null}
@@ -144,6 +157,36 @@ export function ActivityRow({
       </span>
     </Link>
   );
+}
+
+/**
+ * The time column: an ongoing row gives how often it runs, a row folding
+ * several sessions gives the first start and how many more follow.
+ */
+function describeTime({ date, sessions = [date], ongoingDays }: Occurrence): {
+  primary: string;
+  secondary: string | null;
+} {
+  if (ongoingDays) {
+    const times = new Set(
+      sessions.map((session) => (session.isAllDay ? "All day" : formatTime(session.startsAt))),
+    );
+    return {
+      primary: ongoingDays >= 7 ? "Daily" : `${ongoingDays} days`,
+      secondary: times.size === 1 ? [...times][0] : "Various",
+    };
+  }
+  if (date.isAllDay) return { primary: "All day", secondary: null };
+  if (sessions.length > 1) {
+    return {
+      primary: formatTime(date.startsAt),
+      secondary: `+${sessions.length - 1} more`,
+    };
+  }
+  return {
+    primary: formatTime(date.startsAt),
+    secondary: date.endsAt ? formatTime(date.endsAt) : null,
+  };
 }
 
 export function activityHref(slug: string, dateId?: string): string {

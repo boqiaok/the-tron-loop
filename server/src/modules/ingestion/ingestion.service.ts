@@ -25,13 +25,17 @@ import {
 import { ImportItem, ImportItemOutcome } from './entities/import-item.entity';
 import { ImportRun, ImportRunStatus } from './entities/import-run.entity';
 import { Source } from './entities/source.entity';
+import { isSameTitle, isSameVenue } from './activity-match';
 import { EventfindaAdapter } from './eventfinda.adapter';
+import { HamiltonLibrariesAdapter } from './hamilton-libraries.adapter';
 import { JsonFeedAdapter } from './json-feed.adapter';
 import { ImportedActivity, SourceAdapter } from './source-adapter';
 import { SourceType } from './source-type.enum';
 
 @Injectable()
 export class IngestionService {
+  private readonly adapters: Record<SourceType, SourceAdapter>;
+
   constructor(
     @InjectRepository(Source)
     private readonly sources: Repository<Source>,
@@ -46,9 +50,16 @@ export class IngestionService {
     @InjectRepository(Tag)
     private readonly tags: Repository<Tag>,
     private readonly activitiesService: ActivitiesService,
-    private readonly jsonFeedAdapter: JsonFeedAdapter,
-    private readonly eventfindaAdapter: EventfindaAdapter,
-  ) {}
+    jsonFeedAdapter: JsonFeedAdapter,
+    eventfindaAdapter: EventfindaAdapter,
+    hamiltonLibrariesAdapter: HamiltonLibrariesAdapter,
+  ) {
+    this.adapters = {
+      [SourceType.JsonFeed]: jsonFeedAdapter,
+      [SourceType.Eventfinda]: eventfindaAdapter,
+      [SourceType.HamiltonLibraries]: hamiltonLibrariesAdapter,
+    };
+  }
 
   async createSource(dto: CreateSourceDto): Promise<SourceResponseDto> {
     if (await this.sources.existsBy({ name: dto.name.trim() })) {
@@ -124,7 +135,7 @@ export class IngestionService {
     );
 
     try {
-      const adapter = this.getAdapter(source.sourceType);
+      const adapter = this.adapters[source.sourceType];
       const feed = await adapter.fetch(source);
       for (const raw of feed) {
         try {
@@ -199,13 +210,16 @@ export class IngestionService {
       outcome = ImportItemOutcome.ReviewRequired;
       message = 'The existing imported activity is no longer a draft';
     } else {
-      const duplicate = await this.activities.findOneBy({
-        importFingerprint: itemFingerprint,
-      });
+      const duplicate = await this.findDuplicate(
+        source,
+        item,
+        itemFingerprint,
+        existing?.id ?? null,
+      );
       if (!existing && duplicate) {
         outcome = ImportItemOutcome.Duplicate;
         activityId = duplicate.id;
-        message = 'A matching title, start time and venue already exists';
+        message = `Matches existing activity "${duplicate.title}" (same title, start time and venue)`;
       } else {
         const venueId = await this.resolveVenue(item.venue);
         const tagIds = await this.resolveTags(item.tags);
@@ -240,7 +254,7 @@ export class IngestionService {
         if (existing) {
           await this.activitiesService.update(existing.id, input);
           activityId = existing.id;
-          if (duplicate && duplicate.id !== existing.id) {
+          if (duplicate) {
             outcome = ImportItemOutcome.ReviewRequired;
             message =
               'This existing imported activity matches another activity';
@@ -332,9 +346,44 @@ export class IngestionService {
     return source;
   }
 
-  private getAdapter(sourceType: SourceType): SourceAdapter {
-    if (sourceType === SourceType.Eventfinda) return this.eventfindaAdapter;
-    return this.jsonFeedAdapter;
+  /**
+   * Finds an activity already describing this listing: first by the exact
+   * import fingerprint, then across other sources by a shared start time with
+   * the same title and a compatible venue (sources name venues differently).
+   */
+  private async findDuplicate(
+    source: Source,
+    item: ImportedActivity,
+    itemFingerprint: string,
+    existingId: string | null,
+  ): Promise<Activity | null> {
+    const exact = await this.activities.findOneBy({
+      importFingerprint: itemFingerprint,
+    });
+    if (exact && exact.id !== existingId) return exact;
+    if (!item.dates.length) return null;
+
+    const query = this.activities
+      .createQueryBuilder('activity')
+      .innerJoin('activity.dates', 'date')
+      .leftJoinAndSelect('activity.venue', 'venue')
+      .where('date.startsAt IN (:...startsAt)', {
+        startsAt: item.dates.map((date) => new Date(date.startsAt)),
+      })
+      .andWhere('activity.sourceId IS DISTINCT FROM :sourceId', {
+        sourceId: source.id,
+      });
+    if (existingId) {
+      query.andWhere('activity.id <> :existingId', { existingId });
+    }
+    const candidates = await query.take(50).getMany();
+    return (
+      candidates.find(
+        (candidate) =>
+          isSameTitle(candidate.title, item.title) &&
+          isSameVenue(candidate.venue, item.venue),
+      ) ?? null
+    );
   }
 }
 
