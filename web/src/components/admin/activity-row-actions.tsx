@@ -1,6 +1,13 @@
 "use client";
 
-import { Ban, LoaderCircle, Send, Trash2 } from "lucide-react";
+import {
+  Ban,
+  CircleSlash,
+  LoaderCircle,
+  RotateCcw,
+  Send,
+  Trash2,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -16,29 +23,37 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { REJECTION_REASON_OPTIONS } from "@/lib/activities/rejection-reasons";
 import {
   cancelAdminActivity,
   deleteAdminActivity,
   publishAdminActivity,
+  rejectAdminActivities,
+  restoreAdminActivity,
 } from "@/lib/api/admin-activities";
 import { cn } from "@/lib/utils";
-import type { ActivityStatus } from "@/types/activity";
+import type { ActivityStatus, RejectionReason } from "@/types/activity";
 
-type ConfirmAction = "publish" | "cancel" | "delete";
+type ConfirmAction = "publish" | "reject" | "restore" | "cancel" | "delete";
 
 export function ActivityRowActions({
   id,
   status,
   title,
+  imported,
 }: {
   id: string;
   status: ActivityStatus;
   title: string;
+  /** Imported drafts are rejected rather than deleted, so they stay gone. */
+  imported: boolean;
 }) {
   const router = useRouter();
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [pendingAction, setPendingAction] = useState<ConfirmAction | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [rejectionReason, setRejectionReason] =
+    useState<RejectionReason>("not_suitable");
 
   function openConfirmation(action: ConfirmAction) {
     setConfirmAction(action);
@@ -51,6 +66,11 @@ export function ActivityRowActions({
 
     try {
       if (action === "publish") await publishAdminActivity(id);
+      if (action === "reject") {
+        const result = await rejectAdminActivities([id], rejectionReason);
+        if (result.skipped.length) throw new Error(result.skipped[0].reason);
+      }
+      if (action === "restore") await restoreAdminActivity(id);
       if (action === "cancel") await cancelAdminActivity(id);
       if (action === "delete") await deleteAdminActivity(id);
       setConfirmAction(null);
@@ -74,7 +94,7 @@ export function ActivityRowActions({
           href={`/admin/activities/${id}/edit`}
           className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
         >
-          {status === "cancelled" ? "View" : "Edit"}
+          {status === "cancelled" || status === "rejected" ? "View" : "Edit"}
         </Link>
 
         {status === "draft" ? (
@@ -88,13 +108,34 @@ export function ActivityRowActions({
             </Button>
             <Button
               size="sm"
-              variant="destructive"
+              variant="outline"
               disabled={busy}
-              onClick={() => openConfirmation("delete")}
+              onClick={() => openConfirmation("reject")}
             >
-              Delete
+              Reject
             </Button>
+            {imported ? null : (
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={busy}
+                onClick={() => openConfirmation("delete")}
+              >
+                Delete
+              </Button>
+            )}
           </>
+        ) : null}
+
+        {status === "rejected" ? (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            onClick={() => openConfirmation("restore")}
+          >
+            Restore to draft
+          </Button>
         ) : null}
 
         {status === "published" ? (
@@ -124,14 +165,18 @@ export function ActivityRowActions({
               <span
                 className={cn(
                   "grid size-11 place-items-center rounded-full",
-                  confirmAction === "publish"
-                    ? "bg-emerald-100 text-emerald-700"
-                    : "bg-destructive/10 text-destructive",
+                  confirmation.destructive
+                    ? "bg-destructive/10 text-destructive"
+                    : "bg-emerald-100 text-emerald-700",
                 )}
                 aria-hidden="true"
               >
                 {confirmAction === "publish" ? (
                   <Send className="size-5" />
+                ) : confirmAction === "reject" ? (
+                  <CircleSlash className="size-5" />
+                ) : confirmAction === "restore" ? (
+                  <RotateCcw className="size-5" />
                 ) : confirmAction === "cancel" ? (
                   <Ban className="size-5" />
                 ) : (
@@ -143,6 +188,37 @@ export function ActivityRowActions({
                 {confirmation.description}
               </ConfirmDescription>
             </AlertDialogHeader>
+
+            {confirmAction === "reject" ? (
+              <fieldset className="mt-4 grid gap-2">
+                <legend className="mb-1 text-sm font-medium">Reason</legend>
+                {REJECTION_REASON_OPTIONS.map((option) => (
+                  <label
+                    key={option.value}
+                    className={cn(
+                      "flex cursor-pointer gap-3 rounded-lg border px-3 py-2.5 text-sm",
+                      rejectionReason === option.value &&
+                        "border-primary bg-primary/5",
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name={`rejection-reason-${id}`}
+                      value={option.value}
+                      checked={rejectionReason === option.value}
+                      onChange={() => setRejectionReason(option.value)}
+                      className="mt-0.5 accent-[var(--primary)]"
+                    />
+                    <span>
+                      <span className="block font-medium">{option.label}</span>
+                      <span className="block text-xs text-muted-foreground">
+                        {option.description}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </fieldset>
+            ) : null}
 
             {error ? (
               <Alert variant="destructive" className="mt-4">
@@ -178,6 +254,26 @@ function getConfirmationCopy(action: ConfirmAction, title: string) {
       description: `“${title}” will immediately appear in the public weekly guide. You can still edit or cancel it later.`,
       confirmLabel: "Publish activity",
       pendingLabel: "Publishing…",
+      destructive: false,
+    };
+  }
+
+  if (action === "reject") {
+    return {
+      heading: "Reject this draft?",
+      description: `“${title}” stays off the public site, and later imports leave it alone. You can restore it to a draft at any time.`,
+      confirmLabel: "Reject draft",
+      pendingLabel: "Rejecting…",
+      destructive: true,
+    };
+  }
+
+  if (action === "restore") {
+    return {
+      heading: "Restore this activity to a draft?",
+      description: `“${title}” returns to the drafts, where it can be edited and published.`,
+      confirmLabel: "Restore to draft",
+      pendingLabel: "Restoring…",
       destructive: false,
     };
   }

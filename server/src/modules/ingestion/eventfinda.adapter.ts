@@ -9,6 +9,7 @@ import {
   ImportedActivity,
   ImportedActivityDate,
   SourceAdapter,
+  SourceCategory,
 } from './source-adapter';
 import {
   delay,
@@ -72,6 +73,10 @@ export class EventfindaAdapter implements SourceAdapter {
   parse(raw: Record<string, unknown>): ImportedActivity {
     return mapEventfindaActivity(raw);
   }
+
+  categorize(raw: Record<string, unknown>): SourceCategory {
+    return categorizeEventfindaActivity(raw);
+  }
 }
 
 function readPage(payload: unknown): {
@@ -92,6 +97,15 @@ function readPage(payload: unknown): {
   }
 
   return { total: count, events: payload.events };
+}
+
+export function categorizeEventfindaActivity(
+  raw: Record<string, unknown>,
+): SourceCategory {
+  const title = readString(raw, 'name', 200);
+  const category = isRecord(raw.category) ? raw.category : null;
+  const labels = category ? [readString(category, 'name', 120)] : [];
+  return { category: inferCategory({ title, labels }), labels };
 }
 
 function mapEventfindaActivity(raw: Record<string, unknown>): ImportedActivity {
@@ -139,10 +153,7 @@ function mapEventfindaActivity(raw: Record<string, unknown>): ImportedActivity {
     summary: description.slice(0, 500),
     description,
     imageUrl: readPrimaryImage(raw.images),
-    category: inferCategory(
-      title,
-      category ? readString(category, 'name', 120) : null,
-    ),
+    category: categorizeEventfindaActivity(raw).category,
     sourceUrl: readOptionalUrl(raw, 'url'),
     dates,
     venue: location

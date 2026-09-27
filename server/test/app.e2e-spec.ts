@@ -6,6 +6,7 @@ import { App } from 'supertest/types';
 import { DataSource, In } from 'typeorm';
 import { AppModule } from './../src/app.module';
 import { setupApp } from './../src/app.setup';
+import { ActivityDate } from './../src/modules/activities/entities/activity-date.entity';
 import { Activity } from './../src/modules/activities/entities/activity.entity';
 import { Tag } from './../src/modules/activities/entities/tag.entity';
 import { Venue } from './../src/modules/activities/entities/venue.entity';
@@ -15,6 +16,7 @@ import { AdminSession } from './../src/modules/auth/entities/admin-session.entit
 import { hashPassword } from './../src/modules/auth/password';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { ImportItem } from './../src/modules/ingestion/entities/import-item.entity';
 import { Source } from './../src/modules/ingestion/entities/source.entity';
 import { SourceType } from './../src/modules/ingestion/source-type.enum';
 
@@ -29,6 +31,7 @@ describe('Application (e2e)', () => {
   const sourceIds: string[] = [];
   let feedServer: Server;
   let feedUrl: string;
+  let changingFeedItems: Record<string, unknown>[] = [];
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -55,8 +58,12 @@ describe('Application (e2e)', () => {
       .expect(200)
       .expect('set-cookie', /tron_admin_session=/);
 
-    feedServer = createServer((_request, response) => {
+    feedServer = createServer((incoming, response) => {
       response.setHeader('Content-Type', 'application/json');
+      if (incoming.url === '/changing.json') {
+        response.end(JSON.stringify({ items: changingFeedItems }));
+        return;
+      }
       response.end(
         JSON.stringify({
           items: [
@@ -185,6 +192,117 @@ describe('Application (e2e)', () => {
         duplicateCount: 1,
       }),
     );
+
+    const deleteResponse = await adminAgent
+      .delete(`/api/v1/admin/activities/${imported.id}`)
+      .expect(409);
+    expect((deleteResponse.body as { message: string }).message).toContain(
+      'Reject it instead',
+    );
+
+    await adminAgent
+      .post('/api/v1/admin/activities/reject')
+      .send({ ids: [imported.id], reason: 'not_suitable' })
+      .expect(200)
+      .expect({ rejected: [imported.id], skipped: [] });
+    const thirdRunResponse = await adminAgent
+      .post(`/api/v1/admin/sources/${source.id}/import`)
+      .expect(201);
+    const thirdRun = thirdRunResponse.body as {
+      id: string;
+      createdCount: number;
+      updatedCount: number;
+    };
+    expect(thirdRun).toMatchObject({ createdCount: 0, updatedCount: 0 });
+    const ignored = await dataSource.getRepository(ImportItem).findOneByOrFail({
+      runId: thirdRun.id,
+      externalId: 'feed-activity-1',
+    });
+    expect(ignored).toMatchObject({
+      outcome: 'ignored',
+      activityId: imported.id,
+    });
+    await expect(
+      dataSource.getRepository(Activity).findOneByOrFail({ id: imported.id }),
+    ).resolves.toMatchObject({ status: 'rejected' });
+
+    await adminAgent
+      .post(`/api/v1/admin/activities/${imported.id}/restore`)
+      .expect(200);
+    await expect(
+      dataSource.getRepository(Activity).findOneByOrFail({ id: imported.id }),
+    ).resolves.toMatchObject({
+      status: 'draft',
+      rejectedAt: null,
+      rejectionReason: null,
+    });
+  });
+
+  it('keeps rejected activities out of the default list and public site', async () => {
+    const token = `Rejected${Date.now()}`;
+    const response = await adminAgent
+      .post('/api/v1/admin/activities')
+      .send({
+        title: token,
+        description: 'Rejected activity',
+        dates: [{ startsAt: '2099-06-01T07:00:00Z' }],
+      })
+      .expect(201);
+    const { id, slug } = response.body as { id: string; slug: string };
+    activityIds.push(id);
+
+    const rejectResponse = await adminAgent
+      .post('/api/v1/admin/activities/reject')
+      .send({
+        ids: [id, '00000000-0000-4000-8000-000000000000'],
+        reason: 'duplicate',
+      })
+      .expect(200);
+    expect(rejectResponse.body).toMatchObject({ rejected: [id] });
+    await adminAgent
+      .post('/api/v1/admin/activities/reject')
+      .send({ ids: [id], reason: 'maybe' })
+      .expect(400);
+    await adminAgent
+      .patch(`/api/v1/admin/activities/${id}`)
+      .send({ title: `${token} edited` })
+      .expect(409);
+    await adminAgent.post(`/api/v1/admin/activities/${id}/publish`).expect(409);
+
+    type AdminPage = {
+      items: Array<{
+        id: string;
+        rejectedAt: string | null;
+        rejectionReason: string | null;
+      }>;
+      total: number;
+      statusCounts: { rejected: number };
+    };
+    const list = async (query: Record<string, string>) =>
+      (
+        await adminAgent
+          .get('/api/v1/admin/activities')
+          .query({ q: token, ...query })
+          .expect(200)
+      ).body as AdminPage;
+    const all = await list({});
+    expect(all).toMatchObject({ items: [], total: 0 });
+    expect(all.statusCounts.rejected).toBe(1);
+    const rejected = await list({ status: 'rejected' });
+    expect(rejected.total).toBe(1);
+    expect(rejected.items[0]).toMatchObject({
+      id,
+      rejectionReason: 'duplicate',
+    });
+    expect(rejected.items[0].rejectedAt).not.toBeNull();
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/activities/${slug}`)
+      .expect(404);
+
+    await adminAgent.post(`/api/v1/admin/activities/${id}/restore`).expect(200);
+    await adminAgent.post(`/api/v1/admin/activities/${id}/restore`).expect(409);
+    await adminAgent.delete(`/api/v1/admin/activities/${id}`).expect(204);
   });
 
   it('publishes supported regular activities and rejects unsupported recurrence', async () => {
@@ -243,13 +361,13 @@ describe('Application (e2e)', () => {
       sourceType: SourceType.JsonFeed,
     });
     sourceIds.push(source.id);
-    const createActivity = async (label: string, startsAt: string) => {
+    const createActivity = async (label: string, ...startsAts: string[]) => {
       const response = await adminAgent
         .post('/api/v1/admin/activities')
         .send({
           title: `${token} ${label}`,
           description: 'Administration list activity',
-          dates: [{ startsAt }],
+          dates: startsAts.map((startsAt) => ({ startsAt })),
         })
         .expect(201);
       const { id } = response.body as { id: string };
@@ -259,6 +377,14 @@ describe('Application (e2e)', () => {
     const upcoming = await createActivity('upcoming', '2099-03-01T10:00:00Z');
     const past = await createActivity('past', '2020-03-01T10:00:00Z');
     const published = await createActivity('published', '2098-03-01T10:00:00Z');
+    // Its earliest date has passed, so it sorts by its next date instead.
+    const series = await createActivity(
+      'series',
+      '2020-02-01T10:00:00Z',
+      '2021-02-01T10:00:00Z',
+      '2098-06-01T10:00:00Z',
+      '2099-06-01T10:00:00Z',
+    );
     await adminAgent
       .post(`/api/v1/admin/activities/${published}/publish`)
       .expect(200);
@@ -280,17 +406,25 @@ describe('Application (e2e)', () => {
     };
     const ids = (page: AdminPage) => page.items.map(({ id }) => id);
 
-    expect(ids(await list({ sortBy: 'startsAt', order: 'asc' }))).toEqual([
+    expect(ids(await list({}))).toEqual([past, published, series, upcoming]);
+    expect(ids(await list({ sortBy: 'startsAt', order: 'desc' }))).toEqual([
+      upcoming,
+      series,
+      published,
+      past,
+    ]);
+    expect(ids(await list({ schedule: 'series' }))).toEqual([series]);
+    expect(ids(await list({ schedule: 'single' }))).toEqual([
       past,
       published,
       upcoming,
     ]);
     expect(ids(await list({ timing: 'upcoming' })).sort()).toEqual(
-      [upcoming, published].sort(),
+      [upcoming, published, series].sort(),
     );
     expect(ids(await list({ timing: 'past' }))).toEqual([past]);
     expect(ids(await list({ source: 'manual' })).sort()).toEqual(
-      [past, published].sort(),
+      [past, published, series].sort(),
     );
     const fromSource = await list({ source: source.id });
     expect(ids(fromSource)).toEqual([upcoming]);
@@ -317,10 +451,184 @@ describe('Application (e2e)', () => {
     const afterPublish = await list({ status: 'published' });
     expect(afterPublish.total).toBe(3);
     expect(afterPublish.statusCounts).toEqual({
-      draft: 0,
+      draft: 1,
       published: 3,
       cancelled: 0,
+      rejected: 0,
     });
+  });
+
+  it('groups draft activities for review', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/admin/activity-review')
+      .expect(401);
+
+    const token = `Review${Date.now()}`;
+    const createDraft = async (title: string, startsAt: string) => {
+      const response = await adminAgent
+        .post('/api/v1/admin/activities')
+        .send({
+          title: `${token} ${title}`,
+          description: 'Review activity',
+          costType: 'free',
+          dates: [{ startsAt }],
+        })
+        .expect(201);
+      const { id } = response.body as { id: string };
+      activityIds.push(id);
+      return id;
+    };
+    const recital = await createDraft('Recital', '2099-05-01T07:00:00Z');
+    const service = await createDraft(
+      'Justice of the Peace',
+      '2099-05-02T07:00:00Z',
+    );
+    const ended = await createDraft('Open Day', '2020-05-01T07:00:00Z');
+    const rejected = await createDraft('Energy Circle', '2099-05-03T07:00:00Z');
+    await adminAgent
+      .post('/api/v1/admin/activities/reject')
+      .send({ ids: [rejected], reason: 'not_suitable' })
+      .expect(200);
+    // A different slug, but the same title once normalised.
+    const repeat = await createDraft('Energy Circles', '2099-06-03T07:00:00Z');
+
+    const response = await adminAgent
+      .get('/api/v1/admin/activity-review')
+      .expect(200);
+    const body = response.body as {
+      counts: { recommended: number; review: number; skip: number };
+      endedCount: number;
+      items: Array<{
+        activity: { id: string };
+        group: string;
+        reasons: string[];
+        suggestedRejection: string | null;
+      }>;
+    };
+    const byId = new Map(body.items.map((item) => [item.activity.id, item]));
+    expect(byId.get(recital)).toMatchObject({
+      group: 'recommended',
+      reasons: ['trusted_source', 'one_off'],
+    });
+    expect(byId.get(service)).toMatchObject({ group: 'skip' });
+    expect(byId.get(service)?.reasons[0]).toBe('service');
+    expect(byId.has(ended)).toBe(false);
+    expect(body.endedCount).toBeGreaterThanOrEqual(1);
+    expect(byId.has(rejected)).toBe(false);
+    expect(byId.get(repeat)).toMatchObject({
+      group: 'skip',
+      suggestedRejection: 'not_suitable',
+    });
+    expect(byId.get(repeat)?.reasons[0]).toBe('previously_rejected');
+    expect(
+      body.counts.recommended + body.counts.review + body.counts.skip,
+    ).toBe(body.items.length);
+  });
+
+  it('adds new dates to published activities and reports other source changes', async () => {
+    const token = `SourceChange${Date.now()}`;
+    const day = (days: number) =>
+      new Date(Date.now() + days * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .replace(/\.\d{3}Z$/, 'Z');
+    const listing = (overrides: Record<string, unknown>) => ({
+      externalId: token,
+      title: `${token} Market`,
+      description: 'A market that changes at its source',
+      startsAt: day(3),
+      venue: { name: `${token} Hall`, address: '1 Grey Street' },
+      costType: 'free',
+      ...overrides,
+    });
+    const sourceResponse = await adminAgent
+      .post('/api/v1/admin/sources')
+      .send({
+        name: `E2E changing feed ${token}`,
+        sourceType: SourceType.JsonFeed,
+        feedUrl: feedUrl.replace('/events.json', '/changing.json'),
+      })
+      .expect(201);
+    const source = sourceResponse.body as { id: string };
+    sourceIds.push(source.id);
+    const importRun = async () =>
+      (
+        await adminAgent
+          .post(`/api/v1/admin/sources/${source.id}/import`)
+          .expect(201)
+      ).body as { id: string };
+    const outcome = async (runId: string) =>
+      dataSource
+        .getRepository(ImportItem)
+        .findOneByOrFail({ runId, externalId: token });
+    type Changed = Array<{
+      activity: { id: string; dates: Array<{ startsAt: string }> };
+      changes: Array<{
+        kind: string;
+        before: string | null;
+        after: string | null;
+        dates: string[];
+      }>;
+    }>;
+    const pendingFor = async (id: string) =>
+      (
+        (await adminAgent.get('/api/v1/admin/source-changes').expect(200))
+          .body as Changed
+      ).find(({ activity }) => activity.id === id);
+
+    changingFeedItems = [listing({ startsAt: day(3) })];
+    await importRun();
+    const activity = await dataSource
+      .getRepository(Activity)
+      .findOneByOrFail({ sourceId: source.id, externalId: token });
+    activityIds.push(activity.id);
+    await adminAgent
+      .post(`/api/v1/admin/activities/${activity.id}/publish`)
+      .expect(200);
+
+    let run = await importRun();
+    expect(await outcome(run.id)).toMatchObject({ outcome: 'unchanged' });
+    expect(await pendingFor(activity.id)).toBeUndefined();
+
+    // The JSON feed lists one date per item, so a new date replaces the old.
+    changingFeedItems = [listing({ startsAt: day(10) })];
+    run = await importRun();
+    expect(await outcome(run.id)).toMatchObject({
+      outcome: 'review_required',
+    });
+    const dates = await dataSource
+      .getRepository(ActivityDate)
+      .findBy({ activityId: activity.id });
+    expect(dates).toHaveLength(2);
+    expect((await pendingFor(activity.id))?.changes).toEqual([
+      {
+        kind: 'dates_removed',
+        before: null,
+        after: null,
+        dates: [new Date(day(3)).toISOString()],
+      },
+    ]);
+
+    changingFeedItems = [
+      listing({
+        startsAt: day(10),
+        venue: { name: 'Another Venue', address: '9 Other Road' },
+      }),
+    ];
+    await importRun();
+    expect(
+      (await pendingFor(activity.id))?.changes.map(({ kind }) => kind),
+    ).toEqual(['dates_removed', 'venue']);
+
+    await adminAgent
+      .post(`/api/v1/admin/source-changes/${activity.id}/accept`)
+      .expect(204);
+    await adminAgent
+      .post(`/api/v1/admin/source-changes/${activity.id}/accept`)
+      .expect(409);
+    expect(await pendingFor(activity.id)).toBeUndefined();
+    run = await importRun();
+    expect(await outcome(run.id)).toMatchObject({ outcome: 'unchanged' });
+    expect(await pendingFor(activity.id)).toBeUndefined();
   });
 
   it('GET /api/v1/health reports a healthy database', () => {

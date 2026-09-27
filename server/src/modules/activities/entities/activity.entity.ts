@@ -16,10 +16,12 @@ import { ActivityEnvironment } from '../enums/activity-environment.enum';
 import { ActivityStatus } from '../enums/activity-status.enum';
 import { ActivityScheduleMode } from '../enums/activity-schedule-mode.enum';
 import { DurationSource } from '../enums/duration-source.enum';
+import { RejectionReason } from '../enums/rejection-reason.enum';
 import { ActivityDate } from './activity-date.entity';
 import { ActivityTag } from './activity-tag.entity';
 import { Venue } from './venue.entity';
 import { Source } from '../../ingestion/entities/source.entity';
+import type { SourceSnapshot } from '../../ingestion/source-snapshot';
 
 @Entity({ name: 'activities' })
 @Index('UQ_activities_slug', ['slug'], { unique: true })
@@ -32,6 +34,14 @@ import { Source } from '../../ingestion/entities/source.entity';
 @Index('IDX_activities_import_fingerprint', ['importFingerprint'], {
   where: '"import_fingerprint" IS NOT NULL',
 })
+@Check(
+  'CHK_activities_rejected_at',
+  '("status" = \'rejected\') = ("rejected_at" IS NOT NULL)',
+)
+@Check(
+  'CHK_activities_rejection_reason',
+  '("rejected_at" IS NULL) = ("rejection_reason" IS NULL)',
+)
 @Check(
   'CHK_activities_cost_amount_non_negative',
   '"cost_amount_from" IS NULL OR "cost_amount_from" >= 0',
@@ -173,6 +183,26 @@ export class Activity {
 
   @Column({ name: 'cancelled_at', type: 'timestamptz', nullable: true })
   cancelledAt!: Date | null;
+
+  @Column({ name: 'rejected_at', type: 'timestamptz', nullable: true })
+  rejectedAt!: Date | null;
+
+  @Column({
+    name: 'rejection_reason',
+    type: 'enum',
+    enum: RejectionReason,
+    enumName: 'activity_rejection_reason',
+    nullable: true,
+  })
+  rejectionReason!: RejectionReason | null;
+
+  /** The source's listing as an editor last accepted it. */
+  @Column({ name: 'source_snapshot', type: 'jsonb', nullable: true })
+  sourceSnapshot!: SourceSnapshot | null;
+
+  /** The source's listing when it has changed since it was accepted. */
+  @Column({ name: 'pending_source_snapshot', type: 'jsonb', nullable: true })
+  pendingSourceSnapshot!: SourceSnapshot | null;
 
   @OneToMany(() => ActivityDate, (activityDate) => activityDate.activity)
   dates!: ActivityDate[];

@@ -25,13 +25,18 @@ import {
 } from './dto/activity-response.dto';
 import {
   ADMIN_ACTIVITY_MANUAL_SOURCE,
+  ADMIN_ACTIVITY_SERIES_MIN_DATES,
   ActivityPaginationQueryDto,
   ActivityRangeQueryDto,
   AdminActivityQueryDto,
+  AdminActivitySchedule,
   AdminActivitySortBy,
   AdminActivityTiming,
 } from './dto/activity-query.dto';
-import { BulkPublishActivitiesResponseDto } from './dto/bulk-publish-activities.dto';
+import {
+  BulkPublishActivitiesResponseDto,
+  BulkRejectActivitiesResponseDto,
+} from './dto/bulk-activities.dto';
 import { CreateActivityDto } from './dto/create-activity.dto';
 import { UpdateActivityDto } from './dto/update-activity.dto';
 import { ActivityDate } from './entities/activity-date.entity';
@@ -45,6 +50,7 @@ import { ActivityEnvironment } from './enums/activity-environment.enum';
 import { ActivityScheduleMode } from './enums/activity-schedule-mode.enum';
 import { DurationSource } from './enums/duration-source.enum';
 import { ActivityStatus } from './enums/activity-status.enum';
+import { RejectionReason } from './enums/rejection-reason.enum';
 
 const ACTIVITY_RELATIONS = {
   venue: true,
@@ -118,10 +124,11 @@ export class ActivitiesService {
       .addSelect('COUNT(*)', 'count')
       .groupBy('activity.status')
       .getRawMany<{ status: ActivityStatus; count: string }>();
-    const statusCounts = { draft: 0, published: 0, cancelled: 0 };
+    const statusCounts = { draft: 0, published: 0, cancelled: 0, rejected: 0 };
     for (const { status, count } of statusRows) {
       statusCounts[status] = Number(count);
     }
+    // Rejected activities are only listed when asked for by status.
     const total = query.status
       ? statusCounts[query.status]
       : statusCounts.draft + statusCounts.published + statusCounts.cancelled;
@@ -129,15 +136,25 @@ export class ActivitiesService {
     const idQuery = baseQuery.select('activity.id', 'activityId');
     if (query.status) {
       idQuery.andWhere('activity.status = :status', { status: query.status });
+    } else {
+      idQuery.andWhere('activity.status <> :rejected', {
+        rejected: ActivityStatus.Rejected,
+      });
     }
     const direction = query.order === 'asc' ? 'ASC' : 'DESC';
     if (query.sortBy === AdminActivitySortBy.StartsAt) {
       idQuery
         .addSelect(
-          `(SELECT MIN("sortDate"."starts_at") FROM "activity_dates" "sortDate" WHERE "sortDate"."activity_id" = activity.id)`,
-          'firstStartsAt',
+          `COALESCE(
+            (SELECT MIN("sortDate"."starts_at") FROM "activity_dates" "sortDate"
+              WHERE "sortDate"."activity_id" = activity.id
+                AND COALESCE("sortDate"."ends_at", "sortDate"."starts_at") >= now()),
+            (SELECT MIN("sortDate"."starts_at") FROM "activity_dates" "sortDate"
+              WHERE "sortDate"."activity_id" = activity.id)
+          )`,
+          'sortStartsAt',
         )
-        .orderBy('"firstStartsAt"', direction, 'NULLS LAST');
+        .orderBy('"sortStartsAt"', direction, 'NULLS LAST');
     } else {
       idQuery.orderBy(
         query.sortBy === AdminActivitySortBy.Updated
@@ -401,6 +418,12 @@ export class ActivitiesService {
           throw new ConflictException('Cancelled activities cannot be edited');
         }
 
+        if (activity.status === ActivityStatus.Rejected) {
+          throw new ConflictException(
+            'Rejected activities cannot be edited. Restore it to a draft first.',
+          );
+        }
+
         await this.validateReferences(manager, dto.venueId, dto.tagIds);
         this.applyUpdates(activity, dto, slug);
         if (
@@ -435,22 +458,56 @@ export class ActivitiesService {
   }
 
   async publishMany(ids: string[]): Promise<BulkPublishActivitiesResponseDto> {
-    const result: BulkPublishActivitiesResponseDto = {
-      published: [],
-      skipped: [],
-    };
+    const { done, skipped } = await eachIndependently(ids, (id) =>
+      this.publishDraft(id),
+    );
+    return { published: done, skipped };
+  }
 
-    for (const id of ids) {
-      try {
-        await this.publishDraft(id);
-        result.published.push(id);
-      } catch (error) {
-        if (!(error instanceof HttpException)) throw error;
-        result.skipped.push({ id, reason: error.message });
-      }
+  async rejectMany(
+    ids: string[],
+    reason: RejectionReason,
+  ): Promise<BulkRejectActivitiesResponseDto> {
+    const { done, skipped } = await eachIndependently(ids, (id) =>
+      this.rejectDraft(id, reason),
+    );
+    return { rejected: done, skipped };
+  }
+
+  private async rejectDraft(id: string, reason: RejectionReason) {
+    const activity = await this.activitiesRepository.findOneBy({ id });
+
+    if (!activity) {
+      throw new NotFoundException(`Activity "${id}" was not found`);
     }
 
-    return result;
+    if (activity.status !== ActivityStatus.Draft) {
+      throw new ConflictException('Only draft activities can be rejected');
+    }
+
+    activity.status = ActivityStatus.Rejected;
+    activity.rejectedAt = new Date();
+    activity.rejectionReason = reason;
+    await this.activitiesRepository.save(activity);
+  }
+
+  async restore(id: string): Promise<ActivityResponseDto> {
+    const activity = await this.activitiesRepository.findOneBy({ id });
+
+    if (!activity) {
+      throw new NotFoundException(`Activity "${id}" was not found`);
+    }
+
+    if (activity.status !== ActivityStatus.Rejected) {
+      throw new ConflictException('Only rejected activities can be restored');
+    }
+
+    activity.status = ActivityStatus.Draft;
+    activity.rejectedAt = null;
+    activity.rejectionReason = null;
+    await this.activitiesRepository.save(activity);
+
+    return this.findAdminById(id);
   }
 
   private async publishDraft(id: string): Promise<void> {
@@ -479,6 +536,30 @@ export class ActivitiesService {
       activity.status = ActivityStatus.Published;
       activity.publishedAt = new Date();
       await activitiesRepository.save(activity);
+    });
+  }
+
+  /**
+   * Adds dates to an activity, skipping start times it already has. Used when
+   * a source lists new sessions for an activity that is already published.
+   */
+  async addDates(id: string, inputs: ActivityDateInputDto[]): Promise<void> {
+    const dates = this.prepareDates(inputs);
+    await this.dataSource.transaction(async (manager) => {
+      const repository = manager.getRepository(ActivityDate);
+      const existing = new Set(
+        (await repository.findBy({ activityId: id })).map((date) =>
+          date.startsAt.getTime(),
+        ),
+      );
+      const added = dates.filter(
+        (date) => !existing.has(date.startsAt.getTime()),
+      );
+      if (added.length) {
+        await repository.save(
+          added.map((date) => repository.create({ ...date, activityId: id })),
+        );
+      }
     });
   }
 
@@ -516,6 +597,12 @@ export class ActivitiesService {
       throw new ConflictException('Only draft activities can be deleted');
     }
 
+    if (activity.sourceId) {
+      throw new ConflictException(
+        'Imported drafts cannot be deleted. Reject it instead, so the next import does not bring it back.',
+      );
+    }
+
     await this.activitiesRepository.remove(activity);
   }
 
@@ -537,6 +624,16 @@ export class ActivitiesService {
       queryBuilder.andWhere('activity.title ILIKE :search', {
         search: `%${escapeLikePattern(query.q)}%`,
       });
+    }
+
+    if (query.schedule) {
+      const dateCount = `(SELECT COUNT(*) FROM "activity_dates" "scheduleDate" WHERE "scheduleDate"."activity_id" = activity.id)`;
+      queryBuilder.andWhere(
+        query.schedule === AdminActivitySchedule.Series
+          ? `${dateCount} >= :seriesMinDates`
+          : `${dateCount} < :seriesMinDates`,
+        { seriesMinDates: ADMIN_ACTIVITY_SERIES_MIN_DATES },
+      );
     }
 
     if (query.timing) {
@@ -891,4 +988,26 @@ export class ActivitiesService {
 
 function escapeLikePattern(value: string): string {
   return value.replace(/[\\%_]/g, '\\$&');
+}
+
+/**
+ * Runs an action for each ID on its own, so one activity that cannot change
+ * is reported as skipped instead of stopping the rest.
+ */
+async function eachIndependently(
+  ids: string[],
+  action: (id: string) => Promise<void>,
+): Promise<{ done: string[]; skipped: Array<{ id: string; reason: string }> }> {
+  const done: string[] = [];
+  const skipped: Array<{ id: string; reason: string }> = [];
+  for (const id of ids) {
+    try {
+      await action(id);
+      done.push(id);
+    } catch (error) {
+      if (!(error instanceof HttpException)) throw error;
+      skipped.push({ id, reason: error.message });
+    }
+  }
+  return { done, skipped };
 }

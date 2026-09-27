@@ -12,7 +12,7 @@ erDiagram
     ACTIVITIES ||--o{ ACTIVITY_TAGS : has
     TAGS ||--o{ ACTIVITY_TAGS : categorises
     WEEKLY_GUIDES ||--o{ WEEKLY_GUIDE_ITEMS : contains
-    ACTIVITY_DATES ||--o{ WEEKLY_GUIDE_ITEMS : selects
+    ACTIVITIES ||--o{ WEEKLY_GUIDE_ITEMS : selects
     SOURCES ||--o{ IMPORT_RUNS : executes
     SOURCES ||--o{ SOURCE_ITEMS : provides
     IMPORT_RUNS ||--o{ SOURCE_ITEMS : collects
@@ -24,7 +24,13 @@ erDiagram
 
 ### Activity core
 
-- `activities` stores reusable activity content and publication state.
+- `activities` stores reusable activity content and publication state. A
+  draft an editor declines becomes `rejected` with `rejected_at` and a
+  `rejection_reason`; the row is kept so later imports leave it alone, and
+  rejections as `not_suitable` hold back drafts with the same title.
+  Imported activities keep a `source_snapshot` of the source's listing as last
+  accepted, and a `pending_source_snapshot` when a published activity's source
+  has since changed in a way that affects whether people can go.
 - `activity_dates` stores one or more scheduled dates for an activity.
 - `venues` stores reusable Hamilton venue and location data.
 - `tags` stores public activity categories.
@@ -32,13 +38,19 @@ erDiagram
 
 ### Weekly guides
 
-- `weekly_guides` stores each editorial week and publication state.
-- `weekly_guide_items` selects and orders specific activity dates.
+- `weekly_guides` stores each editorial week, keyed by its Monday in
+  `Pacific/Auckland`, with an intro and publication state.
+- `weekly_guide_items` selects and orders the week's picks, one row per
+  activity with an optional editor's note. A pick shows the activity's
+  sessions within that week.
 
 ### Ingestion
 
 - `sources` stores approved data-source definitions.
 - `import_runs` records each collection attempt and its result.
+- `import_items` records each source item's outcome; items for rejected or
+  cancelled activities are `ignored`, and published activities the source
+  still lists as accepted are `unchanged`.
 - `source_items` retains raw source evidence and review state.
 
 ### Administration

@@ -40,7 +40,15 @@ export interface ImportedActivity {
   raw: Record<string, unknown>;
 }
 
+export interface SourceCategory {
+  category: ActivityCategory;
+  /** The source's own category names that were considered. */
+  labels: string[];
+}
+
 export interface SourceAdapter {
   fetch(source: Source): Promise<Record<string, unknown>[]>;
   parse(raw: Record<string, unknown>): ImportedActivity;
+  /** The category alone, which does not depend on the import window. */
+  categorize(raw: Record<string, unknown>): SourceCategory;
 }

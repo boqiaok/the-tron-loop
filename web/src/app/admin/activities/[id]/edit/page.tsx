@@ -39,7 +39,9 @@ export default async function EditActivityPage({
           Activities
         </p>
         <h1 className="mt-1 font-heading text-4xl text-primary">
-          {activity.status === "cancelled" ? "View activity" : "Edit activity"}
+          {activity.status === "cancelled" || activity.status === "rejected"
+            ? "View activity"
+            : "Edit activity"}
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
           {activity.title}

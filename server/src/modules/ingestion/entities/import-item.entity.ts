@@ -15,8 +15,12 @@ import { Activity } from '../../activities/entities/activity.entity';
 export enum ImportItemOutcome {
   Created = 'created',
   Updated = 'updated',
+  /** A published activity the source still lists as accepted. */
+  Unchanged = 'unchanged',
   Duplicate = 'duplicate',
   ReviewRequired = 'review_required',
+  /** The activity was rejected by an editor, so the import leaves it alone. */
+  Ignored = 'ignored',
   Failed = 'failed',
 }
 
@@ -26,7 +30,7 @@ export enum ImportItemOutcome {
 @Index('IDX_import_items_fingerprint', ['fingerprint'])
 @Check(
   'CHK_import_items_outcome',
-  "\"outcome\" IN ('created', 'updated', 'duplicate', 'review_required', 'failed')",
+  "\"outcome\" IN ('created', 'updated', 'unchanged', 'duplicate', 'review_required', 'ignored', 'failed')",
 )
 export class ImportItem {
   @PrimaryGeneratedColumn('uuid')

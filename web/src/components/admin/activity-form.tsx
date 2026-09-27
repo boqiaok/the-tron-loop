@@ -78,7 +78,8 @@ export function ActivityForm({
   venues: Venue[];
 }) {
   const router = useRouter();
-  const readOnly = activity?.status === "cancelled";
+  const readOnly =
+    activity?.status === "cancelled" || activity?.status === "rejected";
   const [form, setForm] = useState<FormState>(() =>
     createInitialState(activity),
   );
@@ -225,7 +226,9 @@ export function ActivityForm({
           <ActivityStatusBadge status={activity.status} />
           {readOnly ? (
             <span className="text-muted-foreground">
-              Cancelled activities are kept as read-only records.
+              {activity.status === "rejected"
+                ? "Restore this activity to a draft before editing it."
+                : "Cancelled activities are kept as read-only records."}
             </span>
           ) : null}
         </div>

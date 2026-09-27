@@ -18,8 +18,9 @@ const WEEKDAYS = [
 const PAST_TOLERANCE_DAYS = 60;
 
 /**
- * Parses website date text such as "Thursday 15 October" with
- * "3:30 PM to 4:30 PM" (or "All day") into a Pacific/Auckland session.
+ * Parses website date text such as "Thursday 15 October" or
+ * "30th September 2026" with "3:30 PM to 4:30 PM" (or "All day") into a
+ * Pacific/Auckland session.
  */
 export function parseLocalDateText(
   dayText: string,
@@ -58,11 +59,13 @@ interface LocalDay {
 }
 
 function parseDay(text: string, now: number): LocalDay {
-  const match = /^(?:([a-z]+),?\s+)?(\d{1,2}\s+[a-z]+)(?:\s+(\d{4}))?$/i.exec(
-    text,
-  );
+  const match =
+    /^(?:([a-z]+),?\s+)?(\d{1,2})(?:st|nd|rd|th)?(\s+[a-z]+)(?:\s+(\d{4}))?$/i.exec(
+      text,
+    );
   if (!match) throw invalid(`date "${text}"`);
-  const [, weekday, dayMonth, explicitYear] = match;
+  const [, weekday, dayNumber, month, explicitYear] = match;
+  const dayMonth = `${dayNumber}${month}`;
 
   const today = new TZDateMini(now, IMPORT_TIMEZONE);
   let year = explicitYear ? Number(explicitYear) : today.getFullYear();

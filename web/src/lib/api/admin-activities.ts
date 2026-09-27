@@ -12,6 +12,7 @@ import type {
   DurationSource,
   ActivityStatus,
   ActivityTag,
+  RejectionReason,
   Venue,
 } from "@/types/activity";
 
@@ -45,6 +46,8 @@ export interface ActivityInput {
 
 export interface AdminActivity extends Activity {
   source: Pick<ActivitySource, "id" | "name" | "sourceType"> | null;
+  rejectedAt: string | null;
+  rejectionReason: RejectionReason | null;
 }
 
 export interface AdminActivitiesPage {
@@ -58,6 +61,11 @@ export interface AdminActivitiesPage {
 
 export interface BulkPublishResult {
   published: string[];
+  skipped: Array<{ id: string; reason: string }>;
+}
+
+export interface BulkRejectResult {
+  rejected: string[];
   skipped: Array<{ id: string; reason: string }>;
 }
 
@@ -75,7 +83,7 @@ export interface AdminRequestContext {
   cookie?: string;
 }
 
-async function request<T>(
+export async function request<T>(
   path: string,
   init: RequestInit = {},
   context: AdminRequestContext = {},
@@ -163,7 +171,11 @@ export interface AdminSession {
 export interface ActivitySource {
   id: string;
   name: string;
-  sourceType: "json_feed" | "eventfinda" | "hamilton_libraries";
+  sourceType:
+    | "json_feed"
+    | "eventfinda"
+    | "hamilton_libraries"
+    | "waikato_museum";
   feedUrl: string;
   enabled: boolean;
   scheduleHours: number;
@@ -276,6 +288,22 @@ export function publishAdminActivities(
 
 export function cancelAdminActivity(id: string): Promise<Activity> {
   return request<Activity>(`/admin/activities/${id}/cancel`, {
+    method: "POST",
+  });
+}
+
+export function rejectAdminActivities(
+  ids: string[],
+  reason: RejectionReason,
+): Promise<BulkRejectResult> {
+  return request<BulkRejectResult>("/admin/activities/reject", {
+    method: "POST",
+    body: JSON.stringify({ ids, reason }),
+  });
+}
+
+export function restoreAdminActivity(id: string): Promise<Activity> {
+  return request<Activity>(`/admin/activities/${id}/restore`, {
     method: "POST",
   });
 }

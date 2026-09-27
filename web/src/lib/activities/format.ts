@@ -1,5 +1,5 @@
 import { ACTIVITY_TIME_ZONE } from "../dates/week-range";
-import type { Activity } from "@/types/activity";
+import type { Activity, ActivityDate } from "@/types/activity";
 
 const timeFormatter = new Intl.DateTimeFormat("en-GB", {
   hour: "2-digit",
@@ -122,4 +122,16 @@ export function formatDistance(distanceKm: number | null | undefined) {
 export function formatCount(count: number, noun = "activity"): string {
   const plural = noun.endsWith("y") ? `${noun.slice(0, -1)}ies` : `${noun}s`;
   return `${count} ${count === 1 ? noun : plural}`;
+}
+
+/** The next date that has not ended, or the first date when all have. */
+export function getNextDate(
+  activity: Pick<Activity, "dates">,
+  now = Date.now(),
+): ActivityDate | undefined {
+  return (
+    activity.dates.find(
+      (date) => new Date(date.endsAt ?? date.startsAt).getTime() >= now,
+    ) ?? activity.dates[0]
+  );
 }

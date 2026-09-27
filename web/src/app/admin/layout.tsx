@@ -28,7 +28,9 @@ export default function AdminLayout({
 
           <div className="flex items-center gap-3">
             <nav className="hidden items-center gap-3 text-sm font-medium sm:flex">
+              <Link href="/admin/review" className="hover:underline">Review</Link>
               <Link href="/admin/activities" className="hover:underline">Activities</Link>
+              <Link href="/admin/picks" className="hover:underline">Picks</Link>
               <Link href="/admin/sources" className="hover:underline">Sources</Link>
             </nav>
             <Link

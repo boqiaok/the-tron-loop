@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import {
+  ADMIN_ACTIVITY_SCHEDULE_OPTIONS,
   ADMIN_ACTIVITY_SORT_OPTIONS,
   ADMIN_ACTIVITY_TIMING_OPTIONS,
   makeAdminActivityListHref,
   type AdminActivityListQuery,
+  type AdminActivitySchedule,
   type AdminActivitySort,
   type AdminActivityTiming,
 } from "@/lib/activities/admin-list-query";
@@ -102,6 +104,21 @@ export function ActivityListFilters({
         className={controlClassName}
       >
         {ADMIN_ACTIVITY_TIMING_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+
+      <select
+        aria-label="Filter by schedule"
+        value={query.schedule}
+        onChange={(event) =>
+          apply({ schedule: event.target.value as AdminActivitySchedule })
+        }
+        className={controlClassName}
+      >
+        {ADMIN_ACTIVITY_SCHEDULE_OPTIONS.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
           </option>

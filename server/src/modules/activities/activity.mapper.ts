@@ -99,5 +99,7 @@ export function toAdminActivityResponse(
           sourceType: activity.source.sourceType,
         }
       : null,
+    rejectedAt: activity.rejectedAt?.toISOString() ?? null,
+    rejectionReason: activity.rejectionReason,
   };
 }

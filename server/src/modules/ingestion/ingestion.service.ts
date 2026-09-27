@@ -29,8 +29,32 @@ import { isSameTitle, isSameVenue } from './activity-match';
 import { EventfindaAdapter } from './eventfinda.adapter';
 import { HamiltonLibrariesAdapter } from './hamilton-libraries.adapter';
 import { JsonFeedAdapter } from './json-feed.adapter';
+import { WaikatoMuseumAdapter } from './waikato-museum.adapter';
+import { getImportWindow } from './import-window';
+import { isKnownLabel } from './infer-category';
 import { ImportedActivity, SourceAdapter } from './source-adapter';
+import {
+  diffSnapshots,
+  findAddedDates,
+  SourceSnapshot,
+  toSourceSnapshot,
+  withAddedDates,
+} from './source-snapshot';
 import { SourceType } from './source-type.enum';
+
+export interface CategoryReclassification {
+  changes: Array<{
+    activityId: string;
+    title: string;
+    status: ActivityStatus;
+    from: ActivityCategory;
+    to: ActivityCategory;
+  }>;
+  unchanged: number;
+  failed: Array<{ activityId: string; title: string; error: string }>;
+  /** Source category names missing from the mapping, most common first. */
+  unknownLabels: Array<{ label: string; count: number }>;
+}
 
 @Injectable()
 export class IngestionService {
@@ -53,11 +77,13 @@ export class IngestionService {
     jsonFeedAdapter: JsonFeedAdapter,
     eventfindaAdapter: EventfindaAdapter,
     hamiltonLibrariesAdapter: HamiltonLibrariesAdapter,
+    waikatoMuseumAdapter: WaikatoMuseumAdapter,
   ) {
     this.adapters = {
       [SourceType.JsonFeed]: jsonFeedAdapter,
       [SourceType.Eventfinda]: eventfindaAdapter,
       [SourceType.HamiltonLibraries]: hamiltonLibrariesAdapter,
+      [SourceType.WaikatoMuseum]: waikatoMuseumAdapter,
     };
   }
 
@@ -137,10 +163,19 @@ export class IngestionService {
     try {
       const adapter = this.adapters[source.sourceType];
       const feed = await adapter.fetch(source);
+      const now = new Date();
+      const window = getImportWindow(now.getTime());
       for (const raw of feed) {
         try {
           const item = adapter.parse(raw);
-          const outcome = await this.importItem(source, run, item);
+          const snapshot = toSourceSnapshot(item, window);
+          const outcome = await this.importItem(
+            source,
+            run,
+            item,
+            snapshot,
+            now,
+          );
           incrementOutcome(run, outcome);
         } catch (error) {
           run.failedCount += 1;
@@ -172,6 +207,93 @@ export class IngestionService {
     return mapRun(run);
   }
 
+  /**
+   * Recomputes the category of every imported draft and published activity
+   * from its latest source payload, saving the changes only when asked.
+   * Activities created by administrators are never touched.
+   */
+  async reclassifyCategories(
+    apply: boolean,
+  ): Promise<CategoryReclassification> {
+    const rows = await this.items
+      .createQueryBuilder('item')
+      .innerJoin('item.activity', 'activity')
+      .innerJoin('item.source', 'source')
+      .select('activity.id', 'activityId')
+      .addSelect('activity.title', 'title')
+      .addSelect('activity.status', 'status')
+      .addSelect('activity.category', 'category')
+      .addSelect('item.rawPayload', 'rawPayload')
+      .addSelect('source.sourceType', 'sourceType')
+      .distinctOn(['item.activity_id'])
+      .where('activity.status IN (:...statuses)', {
+        statuses: [ActivityStatus.Draft, ActivityStatus.Published],
+      })
+      .andWhere('item.outcome <> :failed', {
+        failed: ImportItemOutcome.Failed,
+      })
+      .orderBy('item.activity_id', 'ASC')
+      .addOrderBy('item.created_at', 'DESC')
+      .getRawMany<{
+        activityId: string;
+        title: string;
+        status: ActivityStatus;
+        category: ActivityCategory;
+        rawPayload: Record<string, unknown>;
+        sourceType: SourceType;
+      }>();
+
+    const result: CategoryReclassification = {
+      changes: [],
+      unchanged: 0,
+      failed: [],
+      unknownLabels: [],
+    };
+    const unknownLabels = new Map<string, number>();
+    for (const row of rows) {
+      try {
+        const { category, labels } = this.adapters[row.sourceType].categorize(
+          row.rawPayload,
+        );
+        for (const label of labels.filter((label) => !isKnownLabel(label))) {
+          unknownLabels.set(
+            label.trim(),
+            (unknownLabels.get(label.trim()) ?? 0) + 1,
+          );
+        }
+        if (category === row.category) {
+          result.unchanged += 1;
+        } else {
+          result.changes.push({
+            activityId: row.activityId,
+            title: row.title,
+            status: row.status,
+            from: row.category,
+            to: category,
+          });
+        }
+      } catch (error) {
+        result.failed.push({
+          activityId: row.activityId,
+          title: row.title,
+          error: errorMessage(error),
+        });
+      }
+    }
+    result.unknownLabels = [...unknownLabels]
+      .map(([label, count]) => ({ label, count }))
+      .sort((left, right) => right.count - left.count);
+
+    if (apply) {
+      for (const change of result.changes) {
+        await this.activities.update(change.activityId, {
+          category: change.to,
+        });
+      }
+    }
+    return result;
+  }
+
   async importDueSources(): Promise<void> {
     const now = Date.now();
     const sources = await this.sources.findBy({ enabled: true });
@@ -186,6 +308,8 @@ export class IngestionService {
     source: Source,
     run: ImportRun,
     item: ImportedActivity,
+    snapshot: SourceSnapshot,
+    now: Date,
   ): Promise<ImportItemOutcome> {
     const firstDate = item.dates[0];
     if (!firstDate && !item.isCancelled) {
@@ -203,12 +327,22 @@ export class IngestionService {
     let outcome: ImportItemOutcome;
     let message: string | null = null;
 
-    if (item.isCancelled) {
+    if (existing?.status === ActivityStatus.Rejected) {
+      outcome = ImportItemOutcome.Ignored;
+      message = 'Rejected by an editor';
+    } else if (existing?.status === ActivityStatus.Cancelled) {
+      outcome = ImportItemOutcome.Ignored;
+      message = 'Cancelled by an editor';
+    } else if (existing?.status === ActivityStatus.Published) {
+      ({ outcome, message } = await this.compareWithPublished(
+        existing,
+        item,
+        snapshot,
+        now,
+      ));
+    } else if (item.isCancelled) {
       outcome = ImportItemOutcome.ReviewRequired;
       message = 'The source marks this activity as cancelled';
-    } else if (existing && existing.status !== ActivityStatus.Draft) {
-      outcome = ImportItemOutcome.ReviewRequired;
-      message = 'The existing imported activity is no longer a draft';
     } else {
       const duplicate = await this.findDuplicate(
         source,
@@ -272,10 +406,13 @@ export class IngestionService {
           activityId = created.id;
           outcome = ImportItemOutcome.Created;
         }
+        // Drafts follow their source, so the latest listing is accepted.
         await this.activities.update(activityId, {
           sourceId: source.id,
           externalId: item.externalId,
           importFingerprint: itemFingerprint,
+          sourceSnapshot: snapshot,
+          pendingSourceSnapshot: null,
         });
       }
     }
@@ -344,6 +481,61 @@ export class IngestionService {
     const source = await this.sources.findOneBy({ id });
     if (!source) throw new NotFoundException('Source not found');
     return source;
+  }
+
+  /**
+   * A published activity keeps its content, but new dates from the source
+   * are added so a series stays listed. Other changes that affect whether
+   * people can go wait for an editor, compared with the listing the editor
+   * last accepted rather than the activity, which the editor may have edited.
+   */
+  private async compareWithPublished(
+    activity: Activity,
+    item: ImportedActivity,
+    snapshot: SourceSnapshot,
+    now: Date,
+  ): Promise<{ outcome: ImportItemOutcome; message: string | null }> {
+    if (!activity.sourceSnapshot) {
+      // Published before snapshots were kept: this listing is the baseline.
+      await this.activities.update(activity.id, {
+        sourceSnapshot: snapshot,
+        pendingSourceSnapshot: null,
+      });
+      return { outcome: ImportItemOutcome.Unchanged, message: null };
+    }
+
+    let accepted = activity.sourceSnapshot;
+    const added = findAddedDates(accepted, snapshot, now);
+    if (added.length && !snapshot.cancelled) {
+      const addedTimes = new Set(added);
+      await this.activitiesService.addDates(
+        activity.id,
+        item.dates.filter(({ startsAt }) =>
+          addedTimes.has(new Date(startsAt).toISOString()),
+        ),
+      );
+      accepted = withAddedDates(accepted, snapshot, added);
+    }
+
+    const changes = diffSnapshots(accepted, snapshot, now);
+    await this.activities.update(activity.id, {
+      sourceSnapshot: accepted,
+      pendingSourceSnapshot: changes.length ? snapshot : null,
+    });
+    if (changes.length) {
+      return {
+        outcome: ImportItemOutcome.ReviewRequired,
+        message: `The source changed: ${changes
+          .map(({ kind }) => kind.replace('_', ' '))
+          .join(', ')}`,
+      };
+    }
+    return added.length && !snapshot.cancelled
+      ? {
+          outcome: ImportItemOutcome.Updated,
+          message: `Added ${added.length} new ${added.length === 1 ? 'date' : 'dates'}`,
+        }
+      : { outcome: ImportItemOutcome.Unchanged, message: null };
   }
 
   /**

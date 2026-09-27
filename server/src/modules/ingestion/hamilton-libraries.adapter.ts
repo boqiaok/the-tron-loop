@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { load } from 'cheerio';
-import { ActivityCostType } from '../activities/enums/activity-cost-type.enum';
 import { ActivityEnvironment } from '../activities/enums/activity-environment.enum';
 import { createSlug } from '../activities/activity-slug';
+import { parseCostText } from './cost-text';
 import { Source } from './entities/source.entity';
 import {
   getImportWindow,
@@ -15,6 +15,7 @@ import {
   ImportedActivity,
   ImportedActivityDate,
   SourceAdapter,
+  SourceCategory,
 } from './source-adapter';
 import {
   delay,
@@ -111,6 +112,10 @@ export class HamiltonLibrariesAdapter implements SourceAdapter {
 
   parse(raw: Record<string, unknown>): ImportedActivity {
     return mapLibraryActivity(raw);
+  }
+
+  categorize(raw: Record<string, unknown>): SourceCategory {
+    return categorizeLibraryActivity(raw);
   }
 }
 
@@ -322,6 +327,20 @@ export function parseLibraryAddress(html: string): string | null {
     : null;
 }
 
+export function categorizeLibraryActivity(
+  raw: Record<string, unknown>,
+): SourceCategory {
+  const labels = readStringList(raw.eventTypes);
+  return {
+    category: inferCategory({
+      title: requireString(raw, 'title', 200),
+      labels,
+      audiences: readStringList(raw.audiences),
+    }),
+    labels,
+  };
+}
+
 export function mapLibraryActivity(
   raw: Record<string, unknown>,
   now = Date.now(),
@@ -349,7 +368,7 @@ export function mapLibraryActivity(
     summary: description.split('\n\n')[0].slice(0, 500),
     description,
     imageUrl: readUrl(raw, 'imageUrl'),
-    category: inferCategory(title, [...eventTypes, ...audiences].join(' ')),
+    category: categorizeLibraryActivity(raw).category,
     environment: ActivityEnvironment.Indoor,
     sourceUrl: readUrl(raw, 'url'),
     dates,
@@ -363,34 +382,9 @@ export function mapLibraryActivity(
         }
       : null,
     tags: [...new Set([...eventTypes, ...audiences])],
-    ...mapCost(readOptionalString(raw, 'cost', 255)),
+    ...parseCostText(readOptionalString(raw, 'cost', 255)),
     isCancelled: false,
     raw,
-  };
-}
-
-function mapCost(
-  cost: string | null,
-): Pick<ImportedActivity, 'costType' | 'costAmountFrom' | 'costDetails'> {
-  if (!cost) {
-    return {
-      costType: ActivityCostType.Unknown,
-      costAmountFrom: null,
-      costDetails: null,
-    };
-  }
-  if (/^free\b/i.test(cost)) {
-    return {
-      costType: ActivityCostType.Free,
-      costAmountFrom: 0,
-      costDetails: 'Free',
-    };
-  }
-  const amount = /\$\s*(\d+(?:\.\d{1,2})?)/.exec(cost);
-  return {
-    costType: amount ? ActivityCostType.Paid : ActivityCostType.Unknown,
-    costAmountFrom: amount ? Number(amount[1]) : null,
-    costDetails: cost,
   };
 }
 

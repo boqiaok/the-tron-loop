@@ -18,8 +18,8 @@ export const CATEGORIES: CategoryInfo[] = [
   { value: "family", label: "Family", shortLabel: "Family", color: "#DB2777" },
   {
     value: "outdoors",
-    label: "Outdoors",
-    shortLabel: "Outdoors",
+    label: "Sport & outdoors",
+    shortLabel: "Sport",
     color: "#0F7A4E",
   },
   {

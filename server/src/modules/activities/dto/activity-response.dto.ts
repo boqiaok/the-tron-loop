@@ -5,6 +5,7 @@ import { ActivityEnvironment } from '../enums/activity-environment.enum';
 import { ActivityScheduleMode } from '../enums/activity-schedule-mode.enum';
 import { DurationSource } from '../enums/duration-source.enum';
 import { ActivityStatus } from '../enums/activity-status.enum';
+import { RejectionReason } from '../enums/rejection-reason.enum';
 import { SourceType } from '../../ingestion/source-type.enum';
 
 export class VenueResponseDto {
@@ -169,6 +170,12 @@ export class ActivitySourceSummaryResponseDto {
 export class AdminActivityResponseDto extends ActivityResponseDto {
   @ApiProperty({ type: () => ActivitySourceSummaryResponseDto, nullable: true })
   source!: ActivitySourceSummaryResponseDto | null;
+
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  rejectedAt!: string | null;
+
+  @ApiProperty({ enum: RejectionReason, nullable: true })
+  rejectionReason!: RejectionReason | null;
 }
 
 export class AdminActivityStatusCountsResponseDto {
@@ -180,6 +187,9 @@ export class AdminActivityStatusCountsResponseDto {
 
   @ApiProperty()
   cancelled!: number;
+
+  @ApiProperty({ description: 'Not included in the unfiltered list' })
+  rejected!: number;
 }
 
 export class AdminActivitiesPageResponseDto {

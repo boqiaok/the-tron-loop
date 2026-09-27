@@ -15,6 +15,7 @@
     "migration:revert": "pnpm --filter server migration:revert",
     "migration:show": "pnpm --filter server migration:show",
     "seed:dev": "pnpm --filter server seed:dev",
-    "admin:create": "pnpm --filter server admin:create"
+    "admin:create": "pnpm --filter server admin:create",
+    "categories:reclassify": "pnpm --filter server categories:reclassify"
   }
 }

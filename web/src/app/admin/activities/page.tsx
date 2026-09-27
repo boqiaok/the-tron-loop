@@ -25,6 +25,7 @@ const STATUS_TABS: Array<{ label: string; value?: ActivityStatus }> = [
   { label: "Draft", value: "draft" },
   { label: "Published", value: "published" },
   { label: "Cancelled", value: "cancelled" },
+  { label: "Rejected", value: "rejected" },
 ];
 
 export default async function AdminActivitiesPage({
@@ -39,9 +40,12 @@ export default async function AdminActivitiesPage({
     getAdminSources(context),
   ]);
   const { statusCounts } = activities;
+  // Rejected activities are left out of "All", matching the API.
   const allCount =
     statusCounts.draft + statusCounts.published + statusCounts.cancelled;
-  const isFiltered = Boolean(query.source || query.q || query.timing !== "all");
+  const isFiltered = Boolean(
+    query.source || query.q || query.timing !== "all" || query.schedule !== "all",
+  );
 
   return (
     <main className="mx-auto max-w-7xl px-5 py-8 sm:px-8">
@@ -116,6 +120,7 @@ export default async function AdminActivitiesPage({
                 source: undefined,
                 q: undefined,
                 timing: "all",
+                schedule: "all",
               })}
               className={cn(buttonVariants({ variant: "outline" }), "mt-4")}
             >

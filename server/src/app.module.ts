@@ -10,6 +10,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { MediaModule } from './modules/media/media.module';
 import { IngestionModule } from './modules/ingestion/ingestion.module';
 import { DiscoveryModule } from './modules/discovery/discovery.module';
+import { CurationModule } from './modules/curation/curation.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { DiscoveryModule } from './modules/discovery/discovery.module';
     MediaModule,
     IngestionModule,
     DiscoveryModule,
+    CurationModule,
     HealthModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

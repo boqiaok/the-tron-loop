@@ -1,6 +1,7 @@
 import type { ActivityStatus } from "@/types/activity";
 
 export type AdminActivityTiming = "upcoming" | "past" | "all";
+export type AdminActivitySchedule = "all" | "single" | "series";
 export type AdminActivitySort =
   | "created-desc"
   | "created-asc"
@@ -15,6 +16,7 @@ export interface AdminActivityListQuery {
   source?: string;
   q?: string;
   timing: AdminActivityTiming;
+  schedule: AdminActivitySchedule;
   sort: AdminActivitySort;
 }
 
@@ -22,11 +24,11 @@ export const ADMIN_ACTIVITY_SORT_OPTIONS: Array<{
   value: AdminActivitySort;
   label: string;
 }> = [
+  { value: "starts-asc", label: "Starts soonest" },
+  { value: "starts-desc", label: "Starts latest" },
   { value: "created-desc", label: "Newest added" },
   { value: "created-asc", label: "Oldest added" },
   { value: "updated-desc", label: "Recently updated" },
-  { value: "starts-asc", label: "Starts soonest" },
-  { value: "starts-desc", label: "Starts latest" },
 ];
 
 export const ADMIN_ACTIVITY_TIMING_OPTIONS: Array<{
@@ -38,11 +40,29 @@ export const ADMIN_ACTIVITY_TIMING_OPTIONS: Array<{
   { value: "all", label: "All dates" },
 ];
 
+export const ADMIN_ACTIVITY_SCHEDULE_OPTIONS: Array<{
+  value: AdminActivitySchedule;
+  label: string;
+}> = [
+  { value: "all", label: "All schedules" },
+  { value: "single", label: "Single & short runs" },
+  { value: "series", label: "Series (4+ dates)" },
+];
+
 const DEFAULT_TIMING: AdminActivityTiming = "upcoming";
-const DEFAULT_SORT: AdminActivitySort = "created-desc";
-const STATUSES = new Set<string>(["draft", "published", "cancelled"]);
+const DEFAULT_SCHEDULE: AdminActivitySchedule = "all";
+const DEFAULT_SORT: AdminActivitySort = "starts-asc";
+const STATUSES = new Set<string>([
+  "draft",
+  "published",
+  "cancelled",
+  "rejected",
+]);
 const TIMINGS = new Set<string>(
   ADMIN_ACTIVITY_TIMING_OPTIONS.map(({ value }) => value),
+);
+const SCHEDULES = new Set<string>(
+  ADMIN_ACTIVITY_SCHEDULE_OPTIONS.map(({ value }) => value),
 );
 const SORTS = new Set<string>(
   ADMIN_ACTIVITY_SORT_OPTIONS.map(({ value }) => value),
@@ -55,6 +75,7 @@ export function parseAdminActivityListQuery(
 ): AdminActivityListQuery {
   const status = getSingle(raw.status);
   const timing = getSingle(raw.timing);
+  const schedule = getSingle(raw.schedule);
   const sort = getSingle(raw.sort);
   const page = Number(getSingle(raw.page) ?? "1");
 
@@ -65,6 +86,10 @@ export function parseAdminActivityListQuery(
     q: getSingle(raw.q)?.trim().slice(0, 100) || undefined,
     timing:
       timing && TIMINGS.has(timing) ? (timing as AdminActivityTiming) : DEFAULT_TIMING,
+    schedule:
+      schedule && SCHEDULES.has(schedule)
+        ? (schedule as AdminActivitySchedule)
+        : DEFAULT_SCHEDULE,
     sort: sort && SORTS.has(sort) ? (sort as AdminActivitySort) : DEFAULT_SORT,
   };
 }
@@ -80,6 +105,7 @@ export function makeAdminActivityListHref(
   if (next.source) params.set("source", next.source);
   if (next.q) params.set("q", next.q);
   if (next.timing !== DEFAULT_TIMING) params.set("timing", next.timing);
+  if (next.schedule !== DEFAULT_SCHEDULE) params.set("schedule", next.schedule);
   if (next.sort !== DEFAULT_SORT) params.set("sort", next.sort);
   if (next.page > 1) params.set("page", String(next.page));
   const search = params.toString();
@@ -108,6 +134,7 @@ export function toAdminActivityApiParams(
   if (query.source) params.set("source", query.source);
   if (query.q) params.set("q", query.q);
   if (query.timing !== "all") params.set("timing", query.timing);
+  if (query.schedule !== "all") params.set("schedule", query.schedule);
   return params;
 }
 

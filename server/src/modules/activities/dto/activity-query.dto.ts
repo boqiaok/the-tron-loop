@@ -166,6 +166,14 @@ export enum AdminActivityTiming {
   Past = 'past',
 }
 
+/** Activities with at least this many dates are listed as a series. */
+export const ADMIN_ACTIVITY_SERIES_MIN_DATES = 4;
+
+export enum AdminActivitySchedule {
+  Single = 'single',
+  Series = 'series',
+}
+
 export enum AdminActivitySortBy {
   Created = 'created',
   Updated = 'updated',
@@ -210,16 +218,25 @@ export class AdminActivityQueryDto extends PaginationQueryDto {
   timing?: AdminActivityTiming;
 
   @ApiPropertyOptional({
+    enum: AdminActivitySchedule,
+    description: `single: fewer than ${ADMIN_ACTIVITY_SERIES_MIN_DATES} dates; series: ${ADMIN_ACTIVITY_SERIES_MIN_DATES} or more dates`,
+  })
+  @IsOptional()
+  @IsEnum(AdminActivitySchedule)
+  schedule?: AdminActivitySchedule;
+
+  @ApiPropertyOptional({
     enum: AdminActivitySortBy,
-    default: AdminActivitySortBy.Created,
-    description: 'startsAt sorts by the earliest activity date',
+    default: AdminActivitySortBy.StartsAt,
+    description:
+      'startsAt sorts by the next date that has not ended, or the earliest date when every date has ended',
   })
   @IsOptional()
   @IsEnum(AdminActivitySortBy)
-  sortBy = AdminActivitySortBy.Created;
+  sortBy = AdminActivitySortBy.StartsAt;
 
-  @ApiPropertyOptional({ enum: ['asc', 'desc'], default: 'desc' })
+  @ApiPropertyOptional({ enum: ['asc', 'desc'], default: 'asc' })
   @IsOptional()
   @IsIn(['asc', 'desc'])
-  order = 'desc' as 'asc' | 'desc';
+  order = 'asc' as 'asc' | 'desc';
 }

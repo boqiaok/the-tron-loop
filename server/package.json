@@ -23,7 +23,8 @@
     "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/database/data-source.ts",
     "migration:show": "typeorm-ts-node-commonjs migration:show -d src/database/data-source.ts",
     "seed:dev": "ts-node src/database/seeds/dev-activities.ts",
-    "admin:create": "ts-node src/database/seeds/create-admin.ts"
+    "admin:create": "ts-node src/database/seeds/create-admin.ts",
+    "categories:reclassify": "ts-node src/database/scripts/reclassify-categories.ts"
   },
   "dependencies": {
     "@date-fns/tz": "^1.5.0",

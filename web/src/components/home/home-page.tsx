@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { PlannerPrompt } from "@/components/home/planner-prompt";
 import { WeekendPicks } from "@/components/home/weekend-picks";
+import { WeeklyPicks } from "@/components/home/weekly-picks";
 import {
   formatCount,
   formatDayRange,
@@ -9,9 +10,13 @@ import {
 } from "@/lib/activities/format";
 import type { WeekRange } from "@/lib/dates/week-range";
 import type { Activity } from "@/types/activity";
+import type { WeeklyGuide } from "@/types/weekly-guide";
 
 interface HomePageProps {
   weekend: { range: { from: string; to: string }; activities: Activity[]; total: number };
+  /** The published picks for the current week, when the editors have any. */
+  guide: WeeklyGuide | null;
+  currentWeek: WeekRange;
   weekTotal: number;
   nextWeek: WeekRange;
   nextWeekTotal: number;
@@ -20,6 +25,8 @@ interface HomePageProps {
 
 export function HomePage({
   weekend,
+  guide,
+  currentWeek,
   weekTotal,
   nextWeek,
   nextWeekTotal,
@@ -50,13 +57,21 @@ export function HomePage({
         </div>
       </section>
 
-      <WeekendPicks
-        activities={weekend.activities}
-        range={weekend.range}
-        rangeLabel={formatDayRange(weekend.range)}
-        weekendTotal={weekend.total}
-        weekTotal={weekTotal}
-      />
+      {guide ? (
+        <WeeklyPicks
+          guide={guide}
+          rangeLabel={formatShortRange(currentWeek)}
+          weekTotal={weekTotal}
+        />
+      ) : (
+        <WeekendPicks
+          activities={weekend.activities}
+          range={weekend.range}
+          rangeLabel={formatDayRange(weekend.range)}
+          weekendTotal={weekend.total}
+          weekTotal={weekTotal}
+        />
+      )}
 
       <section className="mx-auto grid max-w-[1120px] gap-4 px-[18px] pb-8 md:grid-cols-2 md:px-8 md:pb-10">
         <Link

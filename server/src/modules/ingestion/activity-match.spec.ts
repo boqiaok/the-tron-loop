@@ -7,7 +7,21 @@ describe('activity matching', () => {
       true,
     );
     expect(isSameTitle('Rock & Roll Night', 'Rock and Roll Night')).toBe(true);
-    expect(isSameTitle('LEGO Club', 'LEGO Club Junior')).toBe(false);
+    expect(isSameTitle('LEGO Club', 'Robotics Club')).toBe(false);
+  });
+
+  it('matches reworded titles that share their key words', () => {
+    expect(
+      isSameTitle(
+        'Public Talk: The Algorithmic Brush',
+        'The Algorithmic Brush: AI and the social foundations of creativity',
+      ),
+    ).toBe(true);
+    expect(isSameTitle('Quiz Night', 'Quiz Night at Eterna')).toBe(true);
+    expect(
+      isSameTitle('Open Late at the Museum', 'Silent Disco at the Museum'),
+    ).toBe(false);
+    expect(isSameTitle('Jazz in the Garden', 'Garden Tour')).toBe(false);
   });
 
   it('matches venue names that add a te reo name or city', () => {
@@ -33,6 +47,18 @@ describe('activity matching', () => {
       isSameVenue(
         { name: 'Te Kete Aronui', address: '30 North City Road, Hamilton' },
         { name: 'Rototuna Library', address: '30 North City Road' },
+      ),
+    ).toBe(true);
+  });
+
+  it('treats street abbreviations as the same address', () => {
+    expect(
+      isSameVenue(
+        { name: 'Waikato Museum', address: '1 Grantham Street' },
+        {
+          name: 'Te Whare Taonga o Waikato Musuem & Gallery',
+          address: '1 Grantham St, Hamilton, Waikato',
+        },
       ),
     ).toBe(true);
   });

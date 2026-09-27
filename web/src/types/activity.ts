@@ -6,7 +6,9 @@ export type ActivityCategory =
   | "arts_music"
   | "community";
 export type ActivityCostType = "free" | "paid" | "unknown";
-export type ActivityStatus = "draft" | "published" | "cancelled";
+export type ActivityStatus = "draft" | "published" | "cancelled" | "rejected";
+
+export type RejectionReason = "not_suitable" | "duplicate" | "not_available";
 export type ActivityEnvironment = "indoor" | "outdoor" | "mixed" | "unknown";
 export type ActivityScheduleMode = "fixed" | "window";
 export type DurationSource =

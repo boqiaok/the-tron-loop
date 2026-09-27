@@ -9,7 +9,12 @@ import {
   getActivityCount,
   getRegularActivities,
 } from "@/lib/api/activities";
-import { ACTIVITY_TIME_ZONE, getWeekRange } from "@/lib/dates/week-range";
+import { getWeeklyGuide } from "@/lib/api/weekly-guides";
+import {
+  ACTIVITY_TIME_ZONE,
+  getWeekRange,
+  getWeekSlug,
+} from "@/lib/dates/week-range";
 
 export const dynamic = "force-dynamic";
 
@@ -21,12 +26,14 @@ export default async function Home() {
   const currentWeek = getWeekRange(0);
   const nextWeek = getWeekRange(1);
   const weekend = currentWeekend(currentWeek);
-  const [weekendPage, weekTotal, nextWeekTotal, regular] = await Promise.all([
-    getActivities(weekend, EMPTY_FILTERS, { limit: 50 }),
-    getActivityCount(currentWeek),
-    getActivityCount(nextWeek),
-    getRegularActivities(),
-  ]);
+  const [weekendPage, weekTotal, nextWeekTotal, regular, guide] =
+    await Promise.all([
+      getActivities(weekend, EMPTY_FILTERS, { limit: 50 }),
+      getActivityCount(currentWeek),
+      getActivityCount(nextWeek),
+      getRegularActivities(),
+      getWeeklyGuide(getWeekSlug(currentWeek)),
+    ]);
 
   return (
     <HomePage
@@ -35,6 +42,8 @@ export default async function Home() {
         activities: weekendPage.items,
         total: weekendPage.total,
       }}
+      guide={guide?.items.length ? guide : null}
+      currentWeek={currentWeek}
       weekTotal={weekTotal}
       nextWeek={nextWeek}
       nextWeekTotal={nextWeekTotal}

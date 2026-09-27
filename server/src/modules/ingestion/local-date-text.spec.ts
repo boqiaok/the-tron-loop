@@ -51,6 +51,18 @@ describe('parseLocalDateText', () => {
     ).toBe('2027-01-04T21:00:00.000Z');
   });
 
+  it('reads ordinal dates with an explicit year', () => {
+    expect(
+      parseLocalDateText('30th September 2026', '5:30 - 8pm', SEPTEMBER_22),
+    ).toMatchObject({
+      startsAt: '2026-09-30T04:30:00.000Z',
+      endsAt: '2026-09-30T07:00:00.000Z',
+    });
+    expect(
+      parseLocalDateText('1st October 2026', '10.30am', SEPTEMBER_22).startsAt,
+    ).toBe('2026-09-30T21:30:00.000Z');
+  });
+
   it('rejects a weekday that does not match the inferred date', () => {
     expect(() =>
       parseLocalDateText(

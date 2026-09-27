@@ -17,6 +17,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { getNextDate } from "@/lib/activities/format";
+import { REJECTION_REASON_LABELS } from "@/lib/activities/rejection-reasons";
 import {
   publishAdminActivities,
   type AdminActivity,
@@ -192,17 +194,17 @@ export function ActivityTable({ activities }: { activities: AdminActivity[] }) {
               <div className="min-w-0">
                 <h2 className="truncate font-semibold">{activity.title}</h2>
                 <p className="mt-1 truncate text-xs text-muted-foreground">
-                  {activity.source?.name ?? "Added manually"} · Updated{" "}
-                  {formatDateTime(activity.updatedAt)}
+                  {activity.source?.name ?? "Added manually"} ·{" "}
+                  {activity.rejectedAt && activity.rejectionReason
+                    ? `Rejected ${formatDateTime(activity.rejectedAt)} as ${REJECTION_REASON_LABELS[activity.rejectionReason].toLowerCase()}`
+                    : `Updated ${formatDateTime(activity.updatedAt)}`}
                 </p>
               </div>
               <div className="col-start-2 text-sm lg:col-start-auto">
                 <span className="mr-2 text-xs font-semibold text-muted-foreground uppercase lg:hidden">
                   Date
                 </span>
-                {activity.dates[0]
-                  ? formatDateTime(activity.dates[0].startsAt)
-                  : "No date"}
+                {formatNextDate(activity)}
                 {activity.dates.length > 1 ? (
                   <span className="ml-1 text-xs text-muted-foreground">
                     +{activity.dates.length - 1} more
@@ -223,6 +225,7 @@ export function ActivityTable({ activities }: { activities: AdminActivity[] }) {
                   id={activity.id}
                   status={activity.status}
                   title={activity.title}
+                  imported={activity.source !== null}
                 />
               </div>
             </article>
@@ -274,6 +277,12 @@ export function ActivityTable({ activities }: { activities: AdminActivity[] }) {
       </AlertDialog>
     </>
   );
+}
+
+/** Shows the next date that has not ended, matching the "starts" sort. */
+function formatNextDate(activity: AdminActivity) {
+  const date = getNextDate(activity);
+  return date ? formatDateTime(date.startsAt) : "No date";
 }
 
 function formatDateTime(value: string) {

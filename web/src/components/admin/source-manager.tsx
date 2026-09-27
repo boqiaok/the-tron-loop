@@ -17,6 +17,7 @@ import {
 const SOURCE_TYPE_LABELS: Record<ActivitySource["sourceType"], string> = {
   eventfinda: "Eventfinda",
   hamilton_libraries: "Hamilton Libraries",
+  waikato_museum: "Waikato Museum",
   json_feed: "JSON feed",
 };
 
@@ -24,6 +25,7 @@ const SOURCE_TYPE_LABELS: Record<ActivitySource["sourceType"], string> = {
 const DEFAULT_FEED_URLS: Record<ActivitySource["sourceType"], string> = {
   eventfinda: "https://api.eventfinda.co.nz/v2/events.json",
   hamilton_libraries: "https://hamiltonlibraries.co.nz/all-events/whats-on",
+  waikato_museum: "https://tewharetaonga.nz/whats-on",
   json_feed: "",
 };
 

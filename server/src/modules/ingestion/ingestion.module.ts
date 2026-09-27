@@ -5,15 +5,18 @@ import { Activity } from '../activities/entities/activity.entity';
 import { Tag } from '../activities/entities/tag.entity';
 import { Venue } from '../activities/entities/venue.entity';
 import { AuthModule } from '../auth/auth.module';
+import { AdminSourceChangesController } from './admin-source-changes.controller';
 import { ImportItem } from './entities/import-item.entity';
 import { ImportRun } from './entities/import-run.entity';
 import { Source } from './entities/source.entity';
 import { IngestionController } from './ingestion.controller';
 import { IngestionScheduler } from './ingestion.scheduler';
 import { IngestionService } from './ingestion.service';
+import { SourceChangesService } from './source-changes.service';
 import { EventfindaAdapter } from './eventfinda.adapter';
 import { HamiltonLibrariesAdapter } from './hamilton-libraries.adapter';
 import { JsonFeedAdapter } from './json-feed.adapter';
+import { WaikatoMuseumAdapter } from './waikato-museum.adapter';
 
 @Module({
   imports: [
@@ -28,13 +31,15 @@ import { JsonFeedAdapter } from './json-feed.adapter';
       Tag,
     ]),
   ],
-  controllers: [IngestionController],
+  controllers: [AdminSourceChangesController, IngestionController],
   providers: [
     IngestionService,
+    SourceChangesService,
     IngestionScheduler,
     EventfindaAdapter,
     HamiltonLibrariesAdapter,
     JsonFeedAdapter,
+    WaikatoMuseumAdapter,
   ],
 })
 export class IngestionModule {}

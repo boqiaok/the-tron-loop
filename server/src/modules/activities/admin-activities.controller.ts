@@ -28,9 +28,11 @@ import {
 } from './dto/activity-response.dto';
 import { AdminActivityQueryDto } from './dto/activity-query.dto';
 import {
-  BulkPublishActivitiesDto,
+  BulkActivitiesDto,
   BulkPublishActivitiesResponseDto,
-} from './dto/bulk-publish-activities.dto';
+  BulkRejectActivitiesDto,
+  BulkRejectActivitiesResponseDto,
+} from './dto/bulk-activities.dto';
 import { CreateActivityDto } from './dto/create-activity.dto';
 import { UpdateActivityDto } from './dto/update-activity.dto';
 import { AdminSessionGuard } from '../auth/admin-session.guard';
@@ -67,9 +69,23 @@ export class AdminActivitiesController {
   })
   @ApiOkResponse({ type: BulkPublishActivitiesResponseDto })
   publishMany(
-    @Body() dto: BulkPublishActivitiesDto,
+    @Body() dto: BulkActivitiesDto,
   ): Promise<BulkPublishActivitiesResponseDto> {
     return this.activitiesService.publishMany(dto.ids);
+  }
+
+  @Post('reject')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Reject several activity drafts',
+    description:
+      'Rejected activities stay out of the public site and are left alone by later imports. Activities that cannot be rejected are reported as skipped.',
+  })
+  @ApiOkResponse({ type: BulkRejectActivitiesResponseDto })
+  rejectMany(
+    @Body() dto: BulkRejectActivitiesDto,
+  ): Promise<BulkRejectActivitiesResponseDto> {
+    return this.activitiesService.rejectMany(dto.ids, dto.reason);
   }
 
   @Get(':id')
@@ -118,11 +134,26 @@ export class AdminActivitiesController {
     return this.activitiesService.cancel(id);
   }
 
+  @Post(':id/restore')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Return a rejected activity to the drafts' })
+  @ApiOkResponse({ type: ActivityResponseDto })
+  @ApiConflictResponse({ description: 'The activity is not rejected' })
+  @ApiNotFoundResponse({ description: 'Activity not found' })
+  restore(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<ActivityResponseDto> {
+    return this.activitiesService.restore(id);
+  }
+
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete an activity draft' })
+  @ApiOperation({ summary: 'Delete a draft created by an administrator' })
   @ApiNoContentResponse()
-  @ApiConflictResponse({ description: 'Only draft activities can be deleted' })
+  @ApiConflictResponse({
+    description:
+      'Only drafts can be deleted, and imported drafts must be rejected instead',
+  })
   @ApiNotFoundResponse({ description: 'Activity not found' })
   async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     await this.activitiesService.removeDraft(id);
