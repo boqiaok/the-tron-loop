@@ -12,9 +12,11 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   MaxLength,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import { ActivityCategory } from '../enums/activity-category.enum';
 import { ActivityCostType } from '../enums/activity-cost-type.enum';
@@ -157,9 +159,67 @@ export class ActivityPaginationQueryDto extends ActivityRangeQueryDto {
   suburb?: string;
 }
 
+export const ADMIN_ACTIVITY_MANUAL_SOURCE = 'manual';
+
+export enum AdminActivityTiming {
+  Upcoming = 'upcoming',
+  Past = 'past',
+}
+
+export enum AdminActivitySortBy {
+  Created = 'created',
+  Updated = 'updated',
+  StartsAt = 'startsAt',
+}
+
 export class AdminActivityQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({ enum: ActivityStatus })
   @IsOptional()
   @IsEnum(ActivityStatus)
   status?: ActivityStatus;
+
+  @ApiPropertyOptional({
+    description: `A source ID, or "${ADMIN_ACTIVITY_MANUAL_SOURCE}" for activities created by administrators`,
+    example: ADMIN_ACTIVITY_MANUAL_SOURCE,
+  })
+  @IsOptional()
+  @ValidateIf(
+    ({ source }: { source?: string }) =>
+      source !== ADMIN_ACTIVITY_MANUAL_SOURCE,
+  )
+  @IsUUID()
+  source?: string;
+
+  @ApiPropertyOptional({ example: 'market', maxLength: 100 })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  q?: string;
+
+  @ApiPropertyOptional({
+    enum: AdminActivityTiming,
+    description:
+      'upcoming: undated, or has a date that has not ended; past: every date has ended',
+  })
+  @IsOptional()
+  @IsEnum(AdminActivityTiming)
+  timing?: AdminActivityTiming;
+
+  @ApiPropertyOptional({
+    enum: AdminActivitySortBy,
+    default: AdminActivitySortBy.Created,
+    description: 'startsAt sorts by the earliest activity date',
+  })
+  @IsOptional()
+  @IsEnum(AdminActivitySortBy)
+  sortBy = AdminActivitySortBy.Created;
+
+  @ApiPropertyOptional({ enum: ['asc', 'desc'], default: 'desc' })
+  @IsOptional()
+  @IsIn(['asc', 'desc'])
+  order = 'desc' as 'asc' | 'desc';
 }

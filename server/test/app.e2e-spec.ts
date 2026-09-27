@@ -235,6 +235,94 @@ describe('Application (e2e)', () => {
     expect(recurringActivity?.dates[0]?.recurrenceRule).toContain('INTERVAL=2');
   });
 
+  it('filters, sorts and bulk publishes administration activities', async () => {
+    const token = `AdminList${Date.now()}`;
+    const source = await dataSource.getRepository(Source).save({
+      name: `E2E admin list ${token}`,
+      feedUrl: 'https://example.com/admin-list.json',
+      sourceType: SourceType.JsonFeed,
+    });
+    sourceIds.push(source.id);
+    const createActivity = async (label: string, startsAt: string) => {
+      const response = await adminAgent
+        .post('/api/v1/admin/activities')
+        .send({
+          title: `${token} ${label}`,
+          description: 'Administration list activity',
+          dates: [{ startsAt }],
+        })
+        .expect(201);
+      const { id } = response.body as { id: string };
+      activityIds.push(id);
+      return id;
+    };
+    const upcoming = await createActivity('upcoming', '2099-03-01T10:00:00Z');
+    const past = await createActivity('past', '2020-03-01T10:00:00Z');
+    const published = await createActivity('published', '2098-03-01T10:00:00Z');
+    await adminAgent
+      .post(`/api/v1/admin/activities/${published}/publish`)
+      .expect(200);
+    await dataSource
+      .getRepository(Activity)
+      .update(upcoming, { sourceId: source.id });
+
+    type AdminPage = {
+      items: Array<{ id: string; source: { name: string } | null }>;
+      total: number;
+      statusCounts: { draft: number; published: number; cancelled: number };
+    };
+    const list = async (query: Record<string, string>) => {
+      const response = await adminAgent
+        .get('/api/v1/admin/activities')
+        .query({ q: token, ...query })
+        .expect(200);
+      return response.body as AdminPage;
+    };
+    const ids = (page: AdminPage) => page.items.map(({ id }) => id);
+
+    expect(ids(await list({ sortBy: 'startsAt', order: 'asc' }))).toEqual([
+      past,
+      published,
+      upcoming,
+    ]);
+    expect(ids(await list({ timing: 'upcoming' })).sort()).toEqual(
+      [upcoming, published].sort(),
+    );
+    expect(ids(await list({ timing: 'past' }))).toEqual([past]);
+    expect(ids(await list({ source: 'manual' })).sort()).toEqual(
+      [past, published].sort(),
+    );
+    const fromSource = await list({ source: source.id });
+    expect(ids(fromSource)).toEqual([upcoming]);
+    expect(fromSource.items[0].source?.name).toBe(source.name);
+    await adminAgent
+      .get('/api/v1/admin/activities')
+      .query({ source: 'not-a-source' })
+      .expect(400);
+
+    const publishResponse = await adminAgent
+      .post('/api/v1/admin/activities/publish')
+      .send({ ids: [upcoming, past, published] })
+      .expect(200);
+    expect(publishResponse.body).toEqual({
+      published: [upcoming, past],
+      skipped: [
+        {
+          id: published,
+          reason: 'Only draft activities can be published',
+        },
+      ],
+    });
+
+    const afterPublish = await list({ status: 'published' });
+    expect(afterPublish.total).toBe(3);
+    expect(afterPublish.statusCounts).toEqual({
+      draft: 0,
+      published: 3,
+      cancelled: 0,
+    });
+  });
+
   it('GET /api/v1/health reports a healthy database', () => {
     return request(app.getHttpServer())
       .get('/api/v1/health')

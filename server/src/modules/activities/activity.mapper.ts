@@ -1,6 +1,7 @@
 import {
   ActivityDateResponseDto,
   ActivityResponseDto,
+  AdminActivityResponseDto,
   TagResponseDto,
   VenueResponseDto,
 } from './dto/activity-response.dto';
@@ -83,5 +84,20 @@ export function toActivityResponse(
     tags,
     createdAt: activity.createdAt.toISOString(),
     updatedAt: activity.updatedAt.toISOString(),
+  };
+}
+
+export function toAdminActivityResponse(
+  activity: Activity,
+): AdminActivityResponseDto {
+  return {
+    ...toActivityResponse(activity),
+    source: activity.source
+      ? {
+          id: activity.source.id,
+          name: activity.source.name,
+          sourceType: activity.source.sourceType,
+        }
+      : null,
   };
 }

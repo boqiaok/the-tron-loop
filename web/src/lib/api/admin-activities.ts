@@ -1,3 +1,7 @@
+import {
+  toAdminActivityApiParams,
+  type AdminActivityListQuery,
+} from "@/lib/activities/admin-list-query";
 import { API_BASE_URL } from "@/lib/api/config";
 import type {
   Activity,
@@ -8,7 +12,6 @@ import type {
   DurationSource,
   ActivityStatus,
   ActivityTag,
-  PaginatedActivities,
   Venue,
 } from "@/types/activity";
 
@@ -40,10 +43,22 @@ export interface ActivityInput {
   tagIds: string[];
 }
 
-export interface AdminActivityQuery {
+export interface AdminActivity extends Activity {
+  source: Pick<ActivitySource, "id" | "name" | "sourceType"> | null;
+}
+
+export interface AdminActivitiesPage {
+  items: AdminActivity[];
   page: number;
-  limit?: number;
-  status?: ActivityStatus;
+  limit: number;
+  total: number;
+  totalPages: number;
+  statusCounts: Record<ActivityStatus, number>;
+}
+
+export interface BulkPublishResult {
+  published: string[];
+  skipped: Array<{ id: string; reason: string }>;
 }
 
 export class ApiError extends Error {
@@ -99,15 +114,12 @@ async function request<T>(
 }
 
 export function getAdminActivities(
-  { page, limit = 10, status }: AdminActivityQuery,
+  query: AdminActivityListQuery,
+  limit: number,
   context: AdminRequestContext = {},
-): Promise<PaginatedActivities> {
-  const params = new URLSearchParams({
-    page: String(page),
-    limit: String(limit),
-  });
-  if (status) params.set("status", status);
-  return request<PaginatedActivities>(
+): Promise<AdminActivitiesPage> {
+  const params = toAdminActivityApiParams(query, limit);
+  return request<AdminActivitiesPage>(
     `/admin/activities?${params}`,
     {},
     context,
@@ -250,6 +262,15 @@ export function updateAdminActivity(
 export function publishAdminActivity(id: string): Promise<Activity> {
   return request<Activity>(`/admin/activities/${id}/publish`, {
     method: "POST",
+  });
+}
+
+export function publishAdminActivities(
+  ids: string[],
+): Promise<BulkPublishResult> {
+  return request<BulkPublishResult>("/admin/activities/publish", {
+    method: "POST",
+    body: JSON.stringify({ ids }),
   });
 }
 

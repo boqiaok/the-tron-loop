@@ -1,29 +1,31 @@
 import { Plus } from "lucide-react";
 import Link from "next/link";
 
-import { ActivityRowActions } from "@/components/admin/activity-row-actions";
-import { ActivityStatusBadge } from "@/components/admin/activity-status-badge";
+import { ActivityListFilters } from "@/components/admin/activity-list-filters";
+import { ActivityTable } from "@/components/admin/activity-table";
 import { buttonVariants } from "@/components/ui/button";
-import { getAdminActivities } from "@/lib/api/admin-activities";
+import {
+  makeAdminActivityListHref,
+  parseAdminActivityListQuery,
+  type AdminActivityListQuery,
+} from "@/lib/activities/admin-list-query";
+import { getAdminActivities, getAdminSources } from "@/lib/api/admin-activities";
+import { requireAdminSession } from "@/lib/auth/admin-session";
 import { cn } from "@/lib/utils";
 import type { ActivityStatus } from "@/types/activity";
-import { requireAdminSession } from "@/lib/auth/admin-session";
 
 export const dynamic = "force-dynamic";
 
+const PAGE_SIZE = 20;
+
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
-const FILTERS: Array<{ label: string; value?: ActivityStatus }> = [
+const STATUS_TABS: Array<{ label: string; value?: ActivityStatus }> = [
   { label: "All" },
   { label: "Draft", value: "draft" },
   { label: "Published", value: "published" },
   { label: "Cancelled", value: "cancelled" },
 ];
-const STATUS_VALUES = new Set<ActivityStatus>([
-  "draft",
-  "published",
-  "cancelled",
-]);
 
 export default async function AdminActivitiesPage({
   searchParams,
@@ -31,14 +33,15 @@ export default async function AdminActivitiesPage({
   searchParams: SearchParams;
 }) {
   const { context } = await requireAdminSession();
-  const raw = await searchParams;
-  const statusValue = getSingle(raw.status);
-  const status = STATUS_VALUES.has(statusValue as ActivityStatus)
-    ? (statusValue as ActivityStatus)
-    : undefined;
-  const rawPage = Number(getSingle(raw.page) ?? "1");
-  const page = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1;
-  const activities = await getAdminActivities({ page, status, limit: 10 }, context);
+  const query = parseAdminActivityListQuery(await searchParams);
+  const [activities, sources] = await Promise.all([
+    getAdminActivities(query, PAGE_SIZE, context),
+    getAdminSources(context),
+  ]);
+  const { statusCounts } = activities;
+  const allCount =
+    statusCounts.draft + statusCounts.published + statusCounts.cancelled;
+  const isFiltered = Boolean(query.source || query.q || query.timing !== "all");
 
   return (
     <main className="mx-auto max-w-7xl px-5 py-8 sm:px-8">
@@ -67,92 +70,66 @@ export default async function AdminActivitiesPage({
         aria-label="Filter activities by status"
         className="mt-7 flex gap-1 overflow-x-auto rounded-lg border bg-white p-1"
       >
-        {FILTERS.map((filter) => {
-          const active = filter.value === status;
-          const href = filter.value
-            ? `/admin/activities?status=${filter.value}`
-            : "/admin/activities";
+        {STATUS_TABS.map((tab) => {
+          const active = tab.value === query.status;
+          const count = tab.value ? statusCounts[tab.value] : allCount;
 
           return (
             <Link
-              key={filter.label}
-              href={href}
+              key={tab.label}
+              href={makeAdminActivityListHref(query, { status: tab.value })}
+              aria-current={active ? "page" : undefined}
               className={cn(
-                "shrink-0 rounded-md px-4 py-2 text-sm font-medium transition-colors",
+                "flex shrink-0 items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors",
                 active
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground",
               )}
             >
-              {filter.label}
+              {tab.label}
+              <span
+                className={cn(
+                  "rounded-full px-2 py-0.5 text-xs tabular-nums",
+                  active ? "bg-white/20" : "bg-muted",
+                )}
+              >
+                {count}
+              </span>
             </Link>
           );
         })}
       </nav>
 
-      <section className="mt-4 overflow-hidden rounded-xl border bg-white shadow-sm">
-        {activities.items.length === 0 ? (
-          <div className="px-6 py-16 text-center">
-            <h2 className="font-semibold">No activities found</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {status
-                ? `There are no ${status} activities.`
-                : "Create the first activity to get started."}
-            </p>
-          </div>
-        ) : (
-          <div className="divide-y">
-            <div className="hidden grid-cols-[minmax(0,2fr)_minmax(11rem,1fr)_minmax(9rem,0.8fr)_8rem_minmax(12rem,auto)] gap-4 bg-muted/60 px-5 py-3 text-xs font-semibold tracking-wide text-muted-foreground uppercase lg:grid">
-              <span>Activity</span>
-              <span>Date</span>
-              <span>Venue</span>
-              <span>Status</span>
-              <span className="text-right">Actions</span>
-            </div>
+      <ActivityListFilters key={query.q ?? ""} query={query} sources={sources} />
 
-            {activities.items.map((activity) => (
-              <article
-                key={activity.id}
-                className="grid gap-4 px-5 py-5 lg:grid-cols-[minmax(0,2fr)_minmax(11rem,1fr)_minmax(9rem,0.8fr)_8rem_minmax(12rem,auto)] lg:items-center"
-              >
-                <div className="min-w-0">
-                  <h2 className="truncate font-semibold">{activity.title}</h2>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Updated {formatDateTime(activity.updatedAt)}
-                  </p>
-                </div>
-                <div className="text-sm">
-                  <span className="mr-2 text-xs font-semibold text-muted-foreground uppercase lg:hidden">
-                    Date
-                  </span>
-                  {activity.dates[0]
-                    ? formatDateTime(activity.dates[0].startsAt)
-                    : "No date"}
-                  {activity.dates.length > 1 ? (
-                    <span className="ml-1 text-xs text-muted-foreground">
-                      +{activity.dates.length - 1} more
-                    </span>
-                  ) : null}
-                </div>
-                <div className="truncate text-sm">
-                  <span className="mr-2 text-xs font-semibold text-muted-foreground uppercase lg:hidden">
-                    Venue
-                  </span>
-                  {activity.venue?.name ?? "No venue"}
-                </div>
-                <div>
-                  <ActivityStatusBadge status={activity.status} />
-                </div>
-                <ActivityRowActions
-                  id={activity.id}
-                  status={activity.status}
-                  title={activity.title}
-                />
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
+      {activities.items.length === 0 ? (
+        <section className="mt-4 rounded-xl border bg-white px-6 py-16 text-center shadow-sm">
+          <h2 className="font-semibold">No activities found</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {isFiltered || query.status
+              ? "No activities match these filters."
+              : "Create the first activity to get started."}
+          </p>
+          {isFiltered ? (
+            <Link
+              href={makeAdminActivityListHref(query, {
+                source: undefined,
+                q: undefined,
+                timing: "all",
+              })}
+              className={cn(buttonVariants({ variant: "outline" }), "mt-4")}
+            >
+              Clear filters
+            </Link>
+          ) : null}
+        </section>
+      ) : (
+        // Remount on navigation so a selection never carries across pages.
+        <ActivityTable
+          key={makeAdminActivityListHref(query, { page: query.page })}
+          activities={activities.items}
+        />
+      )}
 
       <div className="mt-5 flex items-center justify-between gap-4 text-sm text-muted-foreground">
         <p>
@@ -160,18 +137,16 @@ export default async function AdminActivitiesPage({
         </p>
         {activities.totalPages > 1 ? (
           <nav aria-label="Activity list pages" className="flex items-center gap-2">
-            <PageLink
-              disabled={page <= 1}
-              href={makePageHref(status, page - 1)}
-            >
+            <PageLink query={query} page={query.page - 1} disabled={query.page <= 1}>
               Previous
             </PageLink>
             <span>
-              Page {page} of {activities.totalPages}
+              Page {query.page} of {activities.totalPages}
             </span>
             <PageLink
-              disabled={page >= activities.totalPages}
-              href={makePageHref(status, page + 1)}
+              query={query}
+              page={query.page + 1}
+              disabled={query.page >= activities.totalPages}
             >
               Next
             </PageLink>
@@ -185,11 +160,13 @@ export default async function AdminActivitiesPage({
 function PageLink({
   children,
   disabled,
-  href,
+  page,
+  query,
 }: {
   children: React.ReactNode;
   disabled: boolean;
-  href: string;
+  page: number;
+  query: AdminActivityListQuery;
 }) {
   if (disabled) {
     return (
@@ -198,26 +175,11 @@ function PageLink({
   }
 
   return (
-    <Link className="rounded-md border bg-white px-3 py-1.5 hover:bg-muted" href={href}>
+    <Link
+      className="rounded-md border bg-white px-3 py-1.5 hover:bg-muted"
+      href={makeAdminActivityListHref(query, { page })}
+    >
       {children}
     </Link>
   );
-}
-
-function makePageHref(status: ActivityStatus | undefined, page: number) {
-  const params = new URLSearchParams({ page: String(page) });
-  if (status) params.set("status", status);
-  return `/admin/activities?${params}`;
-}
-
-function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat("en-NZ", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "Pacific/Auckland",
-  }).format(new Date(value));
-}
-
-function getSingle(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value;
 }

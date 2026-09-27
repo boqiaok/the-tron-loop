@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -8,25 +9,29 @@ import { InjectRepository } from '@nestjs/typeorm';
 import {
   DataSource,
   EntityManager,
-  FindOptionsWhere,
   In,
   Repository,
   SelectQueryBuilder,
 } from 'typeorm';
 import { createSlug } from './activity-slug';
-import { toActivityResponse } from './activity.mapper';
+import { toActivityResponse, toAdminActivityResponse } from './activity.mapper';
 import { isPostgresUniqueViolation } from './database-error';
 import { ActivityDateInputDto } from './dto/activity-date-input.dto';
 import { ActivityFilterOptionsResponseDto } from './dto/activity-filter-options-response.dto';
 import {
   ActivityResponseDto,
+  AdminActivitiesPageResponseDto,
   PaginatedActivitiesResponseDto,
 } from './dto/activity-response.dto';
 import {
+  ADMIN_ACTIVITY_MANUAL_SOURCE,
   ActivityPaginationQueryDto,
   ActivityRangeQueryDto,
   AdminActivityQueryDto,
+  AdminActivitySortBy,
+  AdminActivityTiming,
 } from './dto/activity-query.dto';
+import { BulkPublishActivitiesResponseDto } from './dto/bulk-publish-activities.dto';
 import { CreateActivityDto } from './dto/create-activity.dto';
 import { UpdateActivityDto } from './dto/update-activity.dto';
 import { ActivityDate } from './entities/activity-date.entity';
@@ -105,14 +110,68 @@ export class ActivitiesService {
 
   async findAdminPage(
     query: AdminActivityQueryDto,
-  ): Promise<PaginatedActivitiesResponseDto> {
-    const where: FindOptionsWhere<Activity> = {};
-
-    if (query.status) {
-      where.status = query.status;
+  ): Promise<AdminActivitiesPageResponseDto> {
+    const baseQuery = this.createAdminQuery(query);
+    const statusRows = await baseQuery
+      .clone()
+      .select('activity.status', 'status')
+      .addSelect('COUNT(*)', 'count')
+      .groupBy('activity.status')
+      .getRawMany<{ status: ActivityStatus; count: string }>();
+    const statusCounts = { draft: 0, published: 0, cancelled: 0 };
+    for (const { status, count } of statusRows) {
+      statusCounts[status] = Number(count);
     }
+    const total = query.status
+      ? statusCounts[query.status]
+      : statusCounts.draft + statusCounts.published + statusCounts.cancelled;
 
-    return this.findPage(query.page, query.limit, where);
+    const idQuery = baseQuery.select('activity.id', 'activityId');
+    if (query.status) {
+      idQuery.andWhere('activity.status = :status', { status: query.status });
+    }
+    const direction = query.order === 'asc' ? 'ASC' : 'DESC';
+    if (query.sortBy === AdminActivitySortBy.StartsAt) {
+      idQuery
+        .addSelect(
+          `(SELECT MIN("sortDate"."starts_at") FROM "activity_dates" "sortDate" WHERE "sortDate"."activity_id" = activity.id)`,
+          'firstStartsAt',
+        )
+        .orderBy('"firstStartsAt"', direction, 'NULLS LAST');
+    } else {
+      idQuery.orderBy(
+        query.sortBy === AdminActivitySortBy.Updated
+          ? 'activity.updatedAt'
+          : 'activity.createdAt',
+        direction,
+      );
+    }
+    const idRows = await idQuery
+      .addOrderBy('activity.id', 'ASC')
+      .offset((query.page - 1) * query.limit)
+      .limit(query.limit)
+      .getRawMany<{ activityId: string }>();
+    const activities = idRows.length
+      ? await this.activitiesRepository.find({
+          where: { id: In(idRows.map(({ activityId }) => activityId)) },
+          relations: { ...ACTIVITY_RELATIONS, source: true },
+        })
+      : [];
+    const activityById = new Map(
+      activities.map((activity) => [activity.id, activity]),
+    );
+
+    return {
+      items: idRows
+        .map(({ activityId }) => activityById.get(activityId))
+        .filter((activity): activity is Activity => activity !== undefined)
+        .map((activity) => toAdminActivityResponse(activity)),
+      page: query.page,
+      limit: query.limit,
+      total,
+      totalPages: Math.ceil(total / query.limit),
+      statusCounts,
+    };
   }
 
   async findPublicPage(
@@ -371,6 +430,30 @@ export class ActivitiesService {
   }
 
   async publish(id: string): Promise<ActivityResponseDto> {
+    await this.publishDraft(id);
+    return this.findAdminById(id);
+  }
+
+  async publishMany(ids: string[]): Promise<BulkPublishActivitiesResponseDto> {
+    const result: BulkPublishActivitiesResponseDto = {
+      published: [],
+      skipped: [],
+    };
+
+    for (const id of ids) {
+      try {
+        await this.publishDraft(id);
+        result.published.push(id);
+      } catch (error) {
+        if (!(error instanceof HttpException)) throw error;
+        result.skipped.push({ id, reason: error.message });
+      }
+    }
+
+    return result;
+  }
+
+  private async publishDraft(id: string): Promise<void> {
     await this.dataSource.transaction(async (manager) => {
       const activitiesRepository = manager.getRepository(Activity);
       const activity = await activitiesRepository.findOneBy({ id });
@@ -397,8 +480,6 @@ export class ActivitiesService {
       activity.publishedAt = new Date();
       await activitiesRepository.save(activity);
     });
-
-    return this.findAdminById(id);
   }
 
   async cancel(id: string): Promise<ActivityResponseDto> {
@@ -438,26 +519,53 @@ export class ActivitiesService {
     await this.activitiesRepository.remove(activity);
   }
 
-  private async findPage(
-    page: number,
-    limit: number,
-    where: FindOptionsWhere<Activity>,
-  ): Promise<PaginatedActivitiesResponseDto> {
-    const [activities, total] = await this.activitiesRepository.findAndCount({
-      where,
-      relations: ACTIVITY_RELATIONS,
-      order: { createdAt: 'DESC' },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+  private createAdminQuery(
+    query: AdminActivityQueryDto,
+  ): SelectQueryBuilder<Activity> {
+    const queryBuilder =
+      this.activitiesRepository.createQueryBuilder('activity');
 
-    return {
-      items: activities.map((activity) => toActivityResponse(activity)),
-      page,
-      limit,
-      total,
-      totalPages: Math.ceil(total / limit),
-    };
+    if (query.source === ADMIN_ACTIVITY_MANUAL_SOURCE) {
+      queryBuilder.andWhere('activity.sourceId IS NULL');
+    } else if (query.source) {
+      queryBuilder.andWhere('activity.sourceId = :sourceId', {
+        sourceId: query.source,
+      });
+    }
+
+    if (query.q) {
+      queryBuilder.andWhere('activity.title ILIKE :search', {
+        search: `%${escapeLikePattern(query.q)}%`,
+      });
+    }
+
+    if (query.timing) {
+      // A recurring date stays current until its UNTIL date; COUNT-limited
+      // series are treated as current because their end is not stored.
+      const hasDates = `EXISTS (SELECT 1 FROM "activity_dates" "timingDate" WHERE "timingDate"."activity_id" = activity.id)`;
+      const hasCurrentDate = `EXISTS (
+        SELECT 1 FROM "activity_dates" "timingDate"
+        WHERE "timingDate"."activity_id" = activity.id
+          AND (
+            COALESCE("timingDate"."ends_at", "timingDate"."starts_at") >= now()
+            OR (
+              "timingDate"."recurrence_rule" IS NOT NULL
+              AND COALESCE(
+                to_date(substring(upper("timingDate"."recurrence_rule") from 'UNTIL=([0-9]{8})'), 'YYYYMMDD'),
+                'infinity'::date
+              ) >= (now() AT TIME ZONE :timeZone)::date
+            )
+          )
+      )`;
+      queryBuilder.andWhere(
+        query.timing === AdminActivityTiming.Upcoming
+          ? `(NOT ${hasDates} OR ${hasCurrentDate})`
+          : `(${hasDates} AND NOT ${hasCurrentDate})`,
+        { timeZone: ACTIVITY_TIME_ZONE },
+      );
+    }
+
+    return queryBuilder;
   }
 
   private createPublicQuery(
@@ -779,4 +887,8 @@ export class ActivitiesService {
       throw new ConflictException(`Activity slug "${slug}" already exists`);
     }
   }
+}
+
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, '\\$&');
 }

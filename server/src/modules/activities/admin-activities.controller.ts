@@ -24,9 +24,13 @@ import {
 import { ActivitiesService } from './activities.service';
 import {
   ActivityResponseDto,
-  PaginatedActivitiesResponseDto,
+  AdminActivitiesPageResponseDto,
 } from './dto/activity-response.dto';
 import { AdminActivityQueryDto } from './dto/activity-query.dto';
+import {
+  BulkPublishActivitiesDto,
+  BulkPublishActivitiesResponseDto,
+} from './dto/bulk-publish-activities.dto';
 import { CreateActivityDto } from './dto/create-activity.dto';
 import { UpdateActivityDto } from './dto/update-activity.dto';
 import { AdminSessionGuard } from '../auth/admin-session.guard';
@@ -47,11 +51,25 @@ export class AdminActivitiesController {
 
   @Get()
   @ApiOperation({ summary: 'List activities for administration' })
-  @ApiOkResponse({ type: PaginatedActivitiesResponseDto })
+  @ApiOkResponse({ type: AdminActivitiesPageResponseDto })
   findAll(
     @Query() query: AdminActivityQueryDto,
-  ): Promise<PaginatedActivitiesResponseDto> {
+  ): Promise<AdminActivitiesPageResponseDto> {
     return this.activitiesService.findAdminPage(query);
+  }
+
+  @Post('publish')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Publish several activity drafts',
+    description:
+      'Each activity is published independently; activities that cannot be published are reported as skipped.',
+  })
+  @ApiOkResponse({ type: BulkPublishActivitiesResponseDto })
+  publishMany(
+    @Body() dto: BulkPublishActivitiesDto,
+  ): Promise<BulkPublishActivitiesResponseDto> {
+    return this.activitiesService.publishMany(dto.ids);
   }
 
   @Get(':id')

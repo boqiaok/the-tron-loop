@@ -5,6 +5,7 @@ import { ActivityEnvironment } from '../enums/activity-environment.enum';
 import { ActivityScheduleMode } from '../enums/activity-schedule-mode.enum';
 import { DurationSource } from '../enums/duration-source.enum';
 import { ActivityStatus } from '../enums/activity-status.enum';
+import { SourceType } from '../../ingestion/source-type.enum';
 
 export class VenueResponseDto {
   @ApiProperty({ format: 'uuid' })
@@ -152,4 +153,54 @@ export class PaginatedActivitiesResponseDto {
 
   @ApiProperty()
   totalPages!: number;
+}
+
+export class ActivitySourceSummaryResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty({ enum: SourceType })
+  sourceType!: SourceType;
+}
+
+export class AdminActivityResponseDto extends ActivityResponseDto {
+  @ApiProperty({ type: () => ActivitySourceSummaryResponseDto, nullable: true })
+  source!: ActivitySourceSummaryResponseDto | null;
+}
+
+export class AdminActivityStatusCountsResponseDto {
+  @ApiProperty()
+  draft!: number;
+
+  @ApiProperty()
+  published!: number;
+
+  @ApiProperty()
+  cancelled!: number;
+}
+
+export class AdminActivitiesPageResponseDto {
+  @ApiProperty({ type: [AdminActivityResponseDto] })
+  items!: AdminActivityResponseDto[];
+
+  @ApiProperty()
+  page!: number;
+
+  @ApiProperty()
+  limit!: number;
+
+  @ApiProperty()
+  total!: number;
+
+  @ApiProperty()
+  totalPages!: number;
+
+  @ApiProperty({
+    type: () => AdminActivityStatusCountsResponseDto,
+    description: 'Counts per status for the current filters, ignoring status',
+  })
+  statusCounts!: AdminActivityStatusCountsResponseDto;
 }
