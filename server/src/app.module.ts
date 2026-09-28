@@ -21,11 +21,9 @@ import { CurationModule } from './modules/curation/curation.module';
           .valid('development', 'test', 'production')
           .default('development'),
         PORT: Joi.number().port().default(3001),
-        DB_HOST: Joi.string().required(),
-        DB_PORT: Joi.number().port().default(5432),
-        DB_USERNAME: Joi.string().required(),
-        DB_PASSWORD: Joi.string().required(),
-        DB_DATABASE: Joi.string().required(),
+        DATABASE_URL: Joi.string()
+          .uri({ scheme: ['postgres', 'postgresql'] })
+          .required(),
         WEB_ORIGIN: Joi.string().uri().required(),
         PUBLIC_API_URL: Joi.string().uri().optional(),
         MEDIA_STORAGE_PATH: Joi.string().default('./media'),
@@ -48,11 +46,7 @@ import { CurationModule } from './modules/curation/curation.module';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
-        host: configService.getOrThrow<string>('DB_HOST'),
-        port: configService.getOrThrow<number>('DB_PORT'),
-        username: configService.getOrThrow<string>('DB_USERNAME'),
-        password: configService.getOrThrow<string>('DB_PASSWORD'),
-        database: configService.getOrThrow<string>('DB_DATABASE'),
+        url: configService.getOrThrow<string>('DATABASE_URL'),
         autoLoadEntities: true,
         synchronize: false,
         migrationsRun: false,

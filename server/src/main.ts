@@ -10,6 +10,8 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const configService = app.get(ConfigService);
 
+  // The API is only reachable through the reverse proxy on the private network.
+  app.set('trust proxy', 'loopback, uniquelocal');
   setupApp(app, configService);
   setupSwagger(app);
   app.useStaticAssets(

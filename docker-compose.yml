@@ -33,11 +33,7 @@ services:
       MEDIA_STORAGE_PATH: /app/media
       ADMIN_COOKIE_SECURE: "false"
       IMPORTS_ENABLED: "true"
-      DB_HOST: database
-      DB_PORT: 5432
-      DB_USERNAME: tron_loop
-      DB_PASSWORD: tron_loop_dev
-      DB_DATABASE: the_tron_loop
+      DATABASE_URL: postgres://tron_loop:tron_loop_dev@database:5432/the_tron_loop
     ports:
       - "3001:3001"
     volumes:
