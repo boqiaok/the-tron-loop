@@ -4,9 +4,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import {
+  DeleteObjectCommand,
+  HeadObjectCommand,
+  NotFound,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { randomUUID } from 'node:crypto';
-import { mkdir, unlink, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
 
 const IMAGE_TYPES = new Map([
   ['image/jpeg', '.jpg'],
@@ -24,13 +29,17 @@ export interface UploadedImage {
 
 @Injectable()
 export class MediaService {
-  private readonly storagePath: string;
+  private readonly bucket: string;
+  private readonly publicUrl: string;
 
-  constructor(private readonly configService: ConfigService) {
-    this.storagePath = resolve(
-      configService.get<string>('MEDIA_STORAGE_PATH') ?? './media',
-      'images',
-    );
+  constructor(
+    private readonly s3: S3Client,
+    configService: ConfigService,
+  ) {
+    this.bucket = configService.getOrThrow<string>('R2_BUCKET');
+    this.publicUrl = configService
+      .getOrThrow<string>('MEDIA_PUBLIC_URL')
+      .replace(/\/$/, '');
   }
 
   async saveImage(file: UploadedImage | undefined): Promise<{
@@ -45,32 +54,45 @@ export class MediaService {
       );
     }
 
-    await mkdir(this.storagePath, { recursive: true });
     const filename = `${randomUUID()}${extension}`;
-    await writeFile(resolve(this.storagePath, filename), file.buffer, {
-      flag: 'wx',
-    });
+    const key = imageKey(filename);
+    await this.s3.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: file.buffer,
+        ContentType: file.mimetype,
+        // Filenames are random UUIDs, so an object's content never changes.
+        CacheControl: 'public, max-age=31536000, immutable',
+      }),
+    );
 
-    const publicApiUrl = (
-      this.configService.get<string>('PUBLIC_API_URL') ??
-      `http://localhost:${this.configService.getOrThrow<number>('PORT')}`
-    ).replace(/\/$/, '');
-    return { filename, url: `${publicApiUrl}/media/images/${filename}` };
+    return { filename, url: `${this.publicUrl}/${key}` };
   }
 
   async removeImage(filename: string): Promise<void> {
     if (!/^[0-9a-f-]{36}\.(?:jpg|png|webp|avif)$/.test(filename)) {
       throw new NotFoundException('Image not found');
     }
+    const key = imageKey(filename);
     try {
-      await unlink(resolve(this.storagePath, filename));
+      await this.s3.send(
+        new HeadObjectCommand({ Bucket: this.bucket, Key: key }),
+      );
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      if (error instanceof NotFound) {
         throw new NotFoundException('Image not found');
       }
       throw error;
     }
+    await this.s3.send(
+      new DeleteObjectCommand({ Bucket: this.bucket, Key: key }),
+    );
   }
+}
+
+function imageKey(filename: string): string {
+  return `images/${filename}`;
 }
 
 function hasValidSignature(buffer: Buffer, mimeType: string): boolean {

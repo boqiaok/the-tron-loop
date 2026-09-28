@@ -1,7 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import { resolve } from 'node:path';
 import { AppModule } from './app.module';
 import { setupApp } from './app.setup';
 import { setupSwagger } from './swagger';
@@ -14,10 +13,6 @@ async function bootstrap() {
   app.set('trust proxy', 'loopback, uniquelocal');
   setupApp(app, configService);
   setupSwagger(app);
-  app.useStaticAssets(
-    resolve(configService.get<string>('MEDIA_STORAGE_PATH') ?? './media'),
-    { prefix: '/media/' },
-  );
 
   await app.listen(configService.getOrThrow<number>('PORT'));
 }

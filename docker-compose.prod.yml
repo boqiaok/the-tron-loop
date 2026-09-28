@@ -27,12 +27,9 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
-      MEDIA_STORAGE_PATH: /app/media
       WEB_ORIGIN: https://${SITE_DOMAIN}
       PUBLIC_API_URL: https://${SITE_DOMAIN}
       ADMIN_COOKIE_SECURE: "true"
-    volumes:
-      - media_data:/app/media
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3001/api/v1/health >/dev/null || exit 1"]
       interval: 10s
@@ -51,4 +48,3 @@ services:
 volumes:
   caddy_data:
   caddy_config:
-  media_data:

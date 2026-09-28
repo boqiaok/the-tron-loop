@@ -4,9 +4,10 @@ Production runs on one Ubuntu/Debian server behind Cloudflare:
 
 ```text
 Browser ──HTTPS──▶ Cloudflare ──HTTPS (origin certificate)──▶ Caddy
-                                                        ├── /api/*, /media/* → server:3001
-                                                        └── everything else  → web:3000
+                                                        ├── /api/*          → server:3001
+                                                        └── everything else → web:3000
 server ──TLS──▶ Neon PostgreSQL
+server ──S3 API──▶ Cloudflare R2 (whson-media) ◀── media.whson.com ◀── Browser
 ```
 
 GitHub Actions verifies each push to `main`, builds the `server` and `web`
@@ -25,6 +26,14 @@ the server over SSH. The server never builds images itself.
 4. SSL/TLS → Origin Server: create an origin certificate covering
    `example.com` and `*.example.com`. Keep the certificate and private key for
    step 3 of the server setup.
+5. R2 Object Storage: create the buckets `whson-media` (production) and
+   `whson-media-dev` (local development) with the location hint
+   **Western North America**.
+6. `whson-media` → Settings → Custom Domains: connect `media.example.com`.
+   `whson-media-dev` → Settings: enable the public development URL
+   (`https://pub-….r2.dev`) for local use.
+7. R2 → Manage API tokens: create an **Object Read & Write** token scoped to
+   both buckets. Keep the access key ID, secret access key and account ID.
 
 ### 2. Server
 
@@ -66,8 +75,8 @@ cd /opt/the-tron-loop
 Create `.env` from `.env.example` and set `SITE_DOMAIN` to the apex domain.
 
 Create `server/.env` with the production secrets. `docker-compose.prod.yml`
-already sets `NODE_ENV`, `PORT`, `MEDIA_STORAGE_PATH`, `WEB_ORIGIN`,
-`PUBLIC_API_URL` and `ADMIN_COOKIE_SECURE`.
+already sets `NODE_ENV`, `PORT`, `WEB_ORIGIN`, `PUBLIC_API_URL` and
+`ADMIN_COOKIE_SECURE`.
 
 ```dotenv
 DATABASE_URL=postgresql://…@ep-….ap-southeast-2.aws.neon.tech/neondb?sslmode=verify-full&channel_binding=require
@@ -76,6 +85,11 @@ EVENTFINDA_USERNAME=
 EVENTFINDA_PASSWORD=
 GEMINI_API_KEY=
 GEMINI_MODEL=gemini-3.5-flash-lite
+R2_ACCOUNT_ID=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_BUCKET=whson-media
+MEDIA_PUBLIC_URL=https://media.example.com
 ```
 
 Use Neon's direct connection string (the host without `-pooler`).
@@ -128,22 +142,6 @@ docker compose -f docker-compose.prod.yml pull
 docker compose -f docker-compose.prod.yml up -d --wait
 ```
 
-## Restoring media
-
-Copy a local backup to the server, then extract it into the media volume:
-
-```bash
-scp backups/<timestamp>/media.tar.gz user@server-ip:/opt/the-tron-loop/
-```
-
-```bash
-cd /opt/the-tron-loop
-docker compose -f docker-compose.prod.yml run --rm --no-deps \
-  -v "$PWD/media.tar.gz:/backup/media.tar.gz:ro" --entrypoint sh server \
-  -c 'tar -xzf /backup/media.tar.gz -C /app/media'
-rm media.tar.gz
-```
-
 ## Operations
 
 ```bash
@@ -151,5 +149,6 @@ docker compose -f docker-compose.prod.yml ps
 docker compose -f docker-compose.prod.yml logs -f server
 ```
 
-Neon provides point-in-time restore for the database. The media volume is only
-on this server, so copy it off the server regularly.
+Neon provides point-in-time restore for the database. Uploaded images live in
+R2, so the server holds no data that needs backing up besides `.env`,
+`server/.env` and the origin certificate.

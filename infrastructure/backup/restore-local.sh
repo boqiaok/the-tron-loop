@@ -6,7 +6,7 @@ if [ "$#" -ne 1 ]; then
   exit 2
 fi
 if [ "${CONFIRM_RESTORE:-}" != "the_tron_loop" ]; then
-  echo "Restore replaces the local database and media. Set CONFIRM_RESTORE=the_tron_loop to continue." >&2
+  echo "Restore replaces the local database. Set CONFIRM_RESTORE=the_tron_loop to continue." >&2
   exit 2
 fi
 
@@ -27,9 +27,5 @@ docker compose exec -T database createdb \
 docker compose exec -T database pg_restore \
   --username=tron_loop \
   --dbname=the_tron_loop < "$backup_dir/database.dump"
-
-docker compose run --rm --no-deps \
-  -v "$backup_dir:/backup:ro" \
-  server sh -c 'find /app/media -mindepth 1 -delete && tar -xzf /backup/media.tar.gz -C /app/media'
 docker compose up -d server web
-echo "Local database and media restored from $backup_dir"
+echo "Local database restored from $backup_dir"

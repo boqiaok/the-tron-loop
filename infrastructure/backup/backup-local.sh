@@ -12,9 +12,5 @@ docker compose exec -T database pg_dump \
   --dbname=the_tron_loop \
   --format=custom > "$backup_dir/database.dump"
 
-docker compose run --rm --no-deps \
-  -v "$backup_dir:/backup" \
-  server tar -czf /backup/media.tar.gz -C /app/media .
-
-(cd "$backup_dir" && shasum -a 256 database.dump media.tar.gz > SHA256SUMS)
+(cd "$backup_dir" && shasum -a 256 database.dump > SHA256SUMS)
 echo "Backup created at $backup_dir"

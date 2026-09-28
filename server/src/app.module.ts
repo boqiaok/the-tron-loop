@@ -26,7 +26,13 @@ import { CurationModule } from './modules/curation/curation.module';
           .required(),
         WEB_ORIGIN: Joi.string().uri().required(),
         PUBLIC_API_URL: Joi.string().uri().optional(),
-        MEDIA_STORAGE_PATH: Joi.string().default('./media'),
+        R2_ACCOUNT_ID: Joi.string().required(),
+        R2_ACCESS_KEY_ID: Joi.string().required(),
+        R2_SECRET_ACCESS_KEY: Joi.string().required(),
+        R2_BUCKET: Joi.string().required(),
+        MEDIA_PUBLIC_URL: Joi.string()
+          .uri({ scheme: ['https', 'http'] })
+          .required(),
         ADMIN_COOKIE_SECURE: Joi.boolean().default(false),
         IMPORTS_ENABLED: Joi.boolean().default(false),
         EVENTFINDA_USERNAME: Joi.string().optional(),

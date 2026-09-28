@@ -13,7 +13,6 @@ case "$1" in
 esac
 
 test -f "$backup_dir/database.dump"
-test -f "$backup_dir/media.tar.gz"
 test -f "$backup_dir/SHA256SUMS"
 (cd "$backup_dir" && shasum -a 256 -c SHA256SUMS)
 
@@ -38,5 +37,4 @@ table_count=$(docker compose exec -T database psql \
   --no-align \
   --command="SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public';")
 
-tar -tzf "$backup_dir/media.tar.gz" >/dev/null
 echo "Backup verified by restoring $table_count database tables into a temporary database."

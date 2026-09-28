@@ -20,8 +20,7 @@ www.{$SITE_DOMAIN} {
 	import cloudflare_origin_tls
 	encode zstd gzip
 
-	@server path /api/* /media/*
-	handle @server {
+	handle /api/* {
 		reverse_proxy server:3001 {
 			header_up X-Forwarded-For {client_ip}
 		}

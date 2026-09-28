@@ -307,8 +307,8 @@ export function ActivityForm({
               className={inputClassName}
               type="text"
               inputMode="url"
-              pattern="(?:https?://.+|/(?:images|media)/.+)"
-              title="Enter an HTTP(S) URL or a local path beginning with /images/ or /media/."
+              pattern="(?:https?://.+|/images/.+)"
+              title="Enter an HTTP(S) URL or a local path beginning with /images/."
               placeholder="/images/activities/activity.jpg"
               value={form.imageUrl}
               onChange={(event) => update("imageUrl", event.target.value)}

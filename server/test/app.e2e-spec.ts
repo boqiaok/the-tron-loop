@@ -19,6 +19,8 @@ import type { AddressInfo } from 'node:net';
 import { ImportItem } from './../src/modules/ingestion/entities/import-item.entity';
 import { Source } from './../src/modules/ingestion/entities/source.entity';
 import { SourceType } from './../src/modules/ingestion/source-type.enum';
+import { S3Client } from '@aws-sdk/client-s3';
+import { InMemoryS3Client } from './in-memory-s3-client';
 
 describe('Application (e2e)', () => {
   let app: INestApplication<App>;
@@ -36,7 +38,10 @@ describe('Application (e2e)', () => {
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(S3Client)
+      .useValue(new InMemoryS3Client())
+      .compile();
 
     app = moduleFixture.createNestApplication();
     setupApp(app, app.get(ConfigService));
@@ -132,7 +137,7 @@ describe('Application (e2e)', () => {
       .expect(201);
     const uploaded = uploadResponse.body as { filename: string; url: string };
     expect(uploaded.url).toMatch(
-      new RegExp(`/media/images/${uploaded.filename.replace('.', '\\.')}$`),
+      new RegExp(`/images/${uploaded.filename.replace('.', '\\.')}$`),
     );
 
     await adminAgent
