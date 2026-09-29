@@ -17,6 +17,8 @@ export interface FilterRailProps {
   scope: WhatsOnScope;
   filters: ActivityFilters;
   options?: ActivityFilterOptions;
+  /** Regular activities are filtered by topic instead of category. */
+  topics?: Array<{ slug: string; name: string; count: number }>;
   onChange: (patch: Partial<ActivityFilters>) => void;
   location: {
     active: boolean;
@@ -37,6 +39,7 @@ export function FilterRail({
   scope,
   filters,
   options,
+  topics,
   onChange,
   location,
 }: FilterRailProps) {
@@ -44,6 +47,14 @@ export function FilterRail({
     options?.categories.map((item) => [item.category, item.count]) ?? [],
   );
   const isRegular = scope === "regular";
+
+  function toggleTopic(slug: string) {
+    onChange({
+      topics: filters.topics.includes(slug)
+        ? filters.topics.filter((value) => value !== slug)
+        : [...filters.topics, slug],
+    });
+  }
 
   function toggleCategory(category: ActivityCategory) {
     onChange({
@@ -55,37 +66,33 @@ export function FilterRail({
 
   return (
     <div className="flex flex-col gap-[22px]">
-      <RailGroup label="Category">
+      <RailGroup label={isRegular ? "Topic" : "Category"}>
         <div className="flex flex-col gap-[7px] text-sm text-secondary-foreground">
-          {CATEGORIES.map((category) => {
-            const checked = filters.categories.includes(category.value);
-            return (
-              <label
-                key={category.value}
-                className="flex cursor-pointer items-center gap-[9px] rounded-md py-0.5"
-              >
-                <span className="relative grid size-4 shrink-0 place-items-center">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggleCategory(category.value)}
-                    className="peer size-4 cursor-pointer appearance-none rounded-[5px] border-[1.5px] border-[#C9C6BE] checked:border-primary checked:bg-primary focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none"
+          {isRegular
+            ? topics?.map((topic) => (
+                <RailCheckbox
+                  key={topic.slug}
+                  checked={filters.topics.includes(topic.slug)}
+                  onChange={() => toggleTopic(topic.slug)}
+                  count={topic.count}
+                >
+                  {topic.name}
+                </RailCheckbox>
+              ))
+            : CATEGORIES.map((category) => (
+                <RailCheckbox
+                  key={category.value}
+                  checked={filters.categories.includes(category.value)}
+                  onChange={() => toggleCategory(category.value)}
+                  count={options ? (counts.get(category.value) ?? 0) : undefined}
+                >
+                  <CategoryDot
+                    color={category.color}
+                    className="size-2 md:size-2"
                   />
-                  <Check
-                    aria-hidden="true"
-                    className="pointer-events-none absolute size-3 stroke-3 text-white opacity-0 peer-checked:opacity-100"
-                  />
-                </span>
-                <CategoryDot color={category.color} className="size-2 md:size-2" />
-                {category.label}
-                {options ? (
-                  <span className="ml-auto text-muted-foreground">
-                    {counts.get(category.value) ?? 0}
-                  </span>
-                ) : null}
-              </label>
-            );
-          })}
+                  {category.label}
+                </RailCheckbox>
+              ))}
         </div>
       </RailGroup>
 
@@ -200,6 +207,39 @@ export function FilterRail({
         </div>
       ) : null}
     </div>
+  );
+}
+
+function RailCheckbox({
+  checked,
+  onChange,
+  count,
+  children,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  count?: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="flex cursor-pointer items-center gap-[9px] rounded-md py-0.5">
+      <span className="relative grid size-4 shrink-0 place-items-center">
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={onChange}
+          className="peer size-4 cursor-pointer appearance-none rounded-[5px] border-[1.5px] border-[#C9C6BE] checked:border-primary checked:bg-primary focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none"
+        />
+        <Check
+          aria-hidden="true"
+          className="pointer-events-none absolute size-3 stroke-3 text-white opacity-0 peer-checked:opacity-100"
+        />
+      </span>
+      {children}
+      {count !== undefined ? (
+        <span className="ml-auto text-muted-foreground">{count}</span>
+      ) : null}
+    </label>
   );
 }
 

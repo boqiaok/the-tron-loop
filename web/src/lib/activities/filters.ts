@@ -30,6 +30,7 @@ export const EMPTY_FILTERS: ActivityFilters = {
   sortBy: "date",
   includeCancelled: false,
   categories: [],
+  topics: [],
   page: 1,
 };
 
@@ -60,6 +61,13 @@ export function parseFilters(searchParams: SearchParams): ActivityFilters {
     includeCancelled: single(searchParams.cancelled) === "show",
     costType: cost === "free" || cost === "paid" ? cost : undefined,
     categories: [...new Set<ActivityCategory>(categories)],
+    topics: [
+      ...new Set(
+        (single(searchParams.topic) ?? "")
+          .split(",")
+          .filter((topic) => topic && topic.length <= 100),
+      ),
+    ],
     when: WHEN_VALUES.has(when as WhenFilter) ? (when as WhenFilter) : undefined,
     suburb: suburb && suburb.length <= 120 ? suburb : undefined,
     page: 1,
@@ -77,6 +85,7 @@ export function toSearchParams(
   if (filters.q) params.set("q", filters.q);
   if (filters.categories.length)
     params.set("category", filters.categories.join(","));
+  if (filters.topics.length) params.set("topic", filters.topics.join(","));
   if (filters.costType) params.set("cost", filters.costType);
   if (filters.when) params.set("when", filters.when);
   if (filters.suburb) params.set("suburb", filters.suburb);
@@ -87,6 +96,7 @@ export function toSearchParams(
 export function countActiveFilters(filters: ActivityFilters): number {
   return (
     filters.categories.length +
+    filters.topics.length +
     (filters.costType ? 1 : 0) +
     (filters.when ? 1 : 0) +
     (filters.suburb ? 1 : 0)

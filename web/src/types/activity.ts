@@ -91,6 +91,8 @@ export interface ActivityFilters {
   includeCancelled: boolean;
   costType?: Exclude<ActivityCostType, "unknown">;
   categories: ActivityCategory[];
+  /** Tag slugs; only the Regular page filters by topic. */
+  topics: string[];
   when?: WhenFilter;
   suburb?: string;
   page: number;

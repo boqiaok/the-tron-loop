@@ -57,13 +57,14 @@ export function WhatsOnExplorer({
   const week = data.scope === "regular" ? undefined : data.week;
   const range = data.scope === "regular" ? undefined : data.range;
 
-  const { categories, costType, includeCancelled, sortBy, suburb, when } =
+  const { categories, costType, includeCancelled, sortBy, suburb, topics, when } =
     filters;
   const coordinates = location.coordinates;
   const requestFilters = useMemo<ActivityFilters>(
     () => ({
       q: debouncedQuery || undefined,
       categories,
+      topics,
       costType,
       includeCancelled,
       suburb,
@@ -81,6 +82,7 @@ export function WhatsOnExplorer({
       includeCancelled,
       sortBy,
       suburb,
+      topics,
       when,
     ],
   );
@@ -181,6 +183,7 @@ export function WhatsOnExplorer({
       scope={data.scope}
       filters={filters}
       options={data.scope === "regular" ? undefined : data.options}
+      topics={data.scope === "regular" ? listTopics(data.activities) : undefined}
       onChange={update}
       location={{
         active: Boolean(location.coordinates),
@@ -500,6 +503,7 @@ function EmptyState({
 function clearedFilters(filters: ActivityFilters): Partial<ActivityFilters> {
   return {
     categories: [],
+    topics: [],
     costType: undefined,
     when: undefined,
     suburb: undefined,
@@ -510,6 +514,7 @@ function clearedFilters(filters: ActivityFilters): Partial<ActivityFilters> {
 function describeFilters(filters: ActivityFilters): string {
   return [
     ...filters.categories.map((category) => getCategory(category).label),
+    ...filters.topics,
     filters.costType === "free" ? "Free" : filters.costType === "paid" ? "Paid" : null,
     filters.when === "today"
       ? "Today"
@@ -524,12 +529,31 @@ function describeFilters(filters: ActivityFilters): string {
     .join(", ");
 }
 
+/** The tags used by regular activities, most common first. */
+function listTopics(activities: Activity[]) {
+  const topics = new Map<string, { slug: string; name: string; count: number }>();
+  for (const { tags } of activities) {
+    for (const tag of tags) {
+      const topic = topics.get(tag.slug) ?? {
+        slug: tag.slug,
+        name: tag.name,
+        count: 0,
+      };
+      topic.count += 1;
+      topics.set(tag.slug, topic);
+    }
+  }
+  return [...topics.values()].sort(
+    (a, b) => b.count - a.count || a.name.localeCompare(b.name),
+  );
+}
+
 function filterRegular(activities: Activity[], filters: ActivityFilters) {
   const query = filters.q?.toLowerCase();
   return activities.filter(
     (activity) =>
-      (!filters.categories.length ||
-        filters.categories.includes(activity.category)) &&
+      (!filters.topics.length ||
+        activity.tags.some((tag) => filters.topics.includes(tag.slug))) &&
       (!filters.costType || activity.costType === filters.costType) &&
       (!query ||
         [
