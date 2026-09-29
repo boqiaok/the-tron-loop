@@ -10,6 +10,8 @@ export function SiteFooter() {
           <span aria-hidden="true">·</span>
           <FooterLink href="/whats-on">What’s on</FooterLink>
           <span aria-hidden="true">·</span>
+          <FooterLink href="/learn-english">Learn English</FooterLink>
+          <span aria-hidden="true">·</span>
           <FooterLink href="/about">About</FooterLink>
         </nav>
       </div>

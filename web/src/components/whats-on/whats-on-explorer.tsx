@@ -331,6 +331,18 @@ export function WhatsOnExplorer({
             ) : null}
           </div>
 
+          {data.scope === "regular" ? (
+            <Link
+              href="/learn-english"
+              className="mb-1.5 rounded-[12px] border border-line bg-card px-4 py-3 text-sm text-secondary-foreground hover:no-underline"
+            >
+              Learning English?{" "}
+              <span className="font-semibold text-action">
+                See every conversation group and class →
+              </span>
+            </Link>
+          ) : null}
+
           {error ? (
             <p className="rounded-[12px] border border-cancelled bg-cancelled/40 px-4 py-3 text-sm text-cancelled-foreground">
               {error}
