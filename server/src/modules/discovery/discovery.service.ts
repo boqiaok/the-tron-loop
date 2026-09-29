@@ -7,6 +7,7 @@ import Ajv from 'ajv';
 import { Repository } from 'typeorm';
 import { toActivityResponse } from '../activities/activity.mapper';
 import { ActivityDate } from '../activities/entities/activity-date.entity';
+import { ActivityCategory } from '../activities/enums/activity-category.enum';
 import { ActivityEnvironment } from '../activities/enums/activity-environment.enum';
 import { ActivityCostType } from '../activities/enums/activity-cost-type.enum';
 import { ActivityStatus } from '../activities/enums/activity-status.enum';
@@ -252,7 +253,7 @@ export class DiscoveryService {
     const lines = [
       'BEGIN:VCALENDAR',
       'VERSION:2.0',
-      'PRODID:-//The Tron Loop//Plan My Day//EN',
+      'PRODID:-//whatson//Plan My Day//EN',
       'CALSCALE:GREGORIAN',
     ];
     for (const item of plan.activities as RecommendationCandidate[]) {
@@ -270,7 +271,7 @@ export class DiscoveryService {
         )}`,
         item.activity.sourceUrl
           ? `URL:${item.activity.sourceUrl}`
-          : 'DESCRIPTION:Planned with The Tron Loop',
+          : 'DESCRIPTION:Planned with whatson',
         'END:VEVENT',
       );
     }
@@ -866,13 +867,31 @@ function weekendStartDate(date: string): string {
   return addDays(date, daysToSaturday);
 }
 
+/** Source tags that say an activity is for children or families. */
+const FAMILY_TAG_SLUGS = new Set([
+  'family',
+  'family-friendly',
+  'family-entertainment',
+  'children',
+  'children-kids-holidays',
+  'preschoolers',
+  'school-holidays',
+]);
+
+function isFamilyFriendly(activity: ActivityDate['activity']): boolean {
+  return (
+    activity.category === ActivityCategory.Family ||
+    activity.activityTags.some(({ tag }) => FAMILY_TAG_SLUGS.has(tag.slug))
+  );
+}
+
 function matchesIntentFilters(
   date: ActivityDate,
   intent: DiscoveryIntentDto,
 ): boolean {
   const activity = date.activity;
-  const tags = activity.activityTags.map(({ tag }) => tag.slug);
-  if (intent.required.familyFriendly && !tags.includes('family')) return false;
+  if (intent.required.familyFriendly && !isFamilyFriendly(activity))
+    return false;
   if (intent.required.freeOnly && activity.costType !== ActivityCostType.Free)
     return false;
   const environment = intent.required.environment;

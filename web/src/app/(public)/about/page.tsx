@@ -4,7 +4,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "About",
   description:
-    "Learn how The Tron Loop makes Hamilton activities easier to discover.",
+    "Learn how whatson makes Hamilton activities easier to discover.",
 };
 
 const steps = [
@@ -31,7 +31,7 @@ export default function AboutPage() {
       <section className="border-b bg-card">
         <div className="mx-auto flex max-w-[1120px] flex-col gap-3.5 px-[18px] py-10 md:px-8 md:py-16">
           <span className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
-            About The Tron Loop
+            About whatson
           </span>
           <h1 className="max-w-[720px] text-[32px] leading-[1.06] tracking-[-0.035em] md:text-[52px] md:leading-[1.02]">
             A simpler way to find what’s on{" "}
@@ -40,7 +40,7 @@ export default function AboutPage() {
             </span>
           </h1>
           <p className="max-w-[640px] text-base leading-[1.6] text-body md:text-[17px]">
-            The Tron Loop brings local activities into one practical weekly
+            whatson brings local activities into one practical weekly
             guide, helping people discover more of their city without the usual
             searching and tab-hopping.
           </p>
@@ -59,7 +59,7 @@ export default function AboutPage() {
             notices.
           </p>
           <p>
-            The Tron Loop does not replace those organisers. It provides a
+            whatson does not replace those organisers. It provides a
             consistent starting point: a weekly overview that is quick to scan
             on desktop or mobile, with direct links to original sources.
           </p>

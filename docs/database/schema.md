@@ -1,6 +1,6 @@
 # Database schema
 
-The Tron Loop uses PostgreSQL with TypeORM migrations. Automatic schema
+whatson uses PostgreSQL with TypeORM migrations. Automatic schema
 synchronisation is disabled in every environment.
 
 ## MVP entity relationships

@@ -1,4 +1,4 @@
-# The Tron Loop
+# whatson
 
 A weekly guide to events and activities around Hamilton, New Zealand.
 Visitors can browse what's on and build a day plan from natural-language

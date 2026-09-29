@@ -18,7 +18,7 @@ export function buildActivityIcs(
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//The Tron Loop//Activity//EN",
+    "PRODID:-//whatson//Activity//EN",
     "CALSCALE:GREGORIAN",
     "BEGIN:VEVENT",
     `UID:${date.id}@thetronloop`,

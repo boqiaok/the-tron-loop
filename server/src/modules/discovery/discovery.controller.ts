@@ -48,7 +48,7 @@ export class DiscoveryController {
   @Post('itineraries/calendar')
   @HttpCode(HttpStatus.OK)
   @Header('Content-Type', 'text/calendar; charset=utf-8')
-  @Header('Content-Disposition', 'attachment; filename="tron-loop-plan.ics"')
+  @Header('Content-Disposition', 'attachment; filename="whatson-plan.ics"')
   @ApiOperation({ summary: 'Export a compatible plan as an iCalendar file' })
   calendar(@Body() dto: ItineraryRequestDto) {
     return this.discovery.calendar(dto);

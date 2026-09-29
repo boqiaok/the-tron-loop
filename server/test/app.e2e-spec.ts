@@ -6,6 +6,7 @@ import { App } from 'supertest/types';
 import { DataSource, In } from 'typeorm';
 import { AppModule } from './../src/app.module';
 import { setupApp } from './../src/app.setup';
+import { ActivityCategory } from './../src/modules/activities/enums/activity-category.enum';
 import { ActivityDate } from './../src/modules/activities/entities/activity-date.entity';
 import { Activity } from './../src/modules/activities/entities/activity.entity';
 import { Tag } from './../src/modules/activities/entities/tag.entity';
@@ -668,9 +669,9 @@ describe('Application (e2e)', () => {
       };
     };
 
-    expect(document.info?.title).toBe('The Tron Loop API');
+    expect(document.info?.title).toBe('whatson API');
     expect(document.paths).toHaveProperty('/api/v1/admin/activities');
-    expect(document.paths).not.toHaveProperty('/api/v1/activities/{slug}');
+    expect(document.paths).toHaveProperty('/api/v1/activities/{slug}');
     expect(
       document.components?.schemas?.CreateActivityDto.properties?.summary,
     ).toEqual(expect.objectContaining({ type: 'string', nullable: true }));
@@ -691,7 +692,6 @@ describe('Application (e2e)', () => {
     let laterActivityId: string;
     let venueId: string;
     let tagId: string;
-    let tagSlug: string;
 
     it('creates supporting venue and tag records', async () => {
       const venueResponse = await adminAgent
@@ -715,7 +715,6 @@ describe('Application (e2e)', () => {
         .expect(201);
       const tag = tagResponse.body as { id: string; slug: string };
       tagId = tag.id;
-      tagSlug = tag.slug;
       tagIds.push(tagId);
       expect(tag.slug).toContain('e2e-family');
     });
@@ -835,7 +834,7 @@ describe('Application (e2e)', () => {
     it('does not expose a draft through the public API', async () => {
       const response = await request(app.getHttpServer())
         .get('/api/v1/activities')
-        .query({ ...publicRange, tag: tagSlug })
+        .query({ ...publicRange, q: activityTitle })
         .expect(200);
       const page = response.body as { items: Array<{ id: string }> };
 
@@ -1010,25 +1009,29 @@ describe('Application (e2e)', () => {
         .query(publicRange)
         .expect(200);
       const options = response.body as {
-        costTypes: string[];
-        tags: Array<{ name: string; slug: string }>;
+        categories: Array<{ category: string; count: number }>;
         suburbs: string[];
+        cancelledCount: number;
       };
 
-      expect(options.costTypes).toEqual(['free', 'paid', 'unknown']);
-      expect(options.tags).toEqual(
-        expect.arrayContaining([expect.objectContaining({ slug: tagSlug })]),
+      expect(options.categories.map(({ category }) => category)).toEqual(
+        Object.values(ActivityCategory),
       );
+      expect(
+        options.categories.find(({ category }) => category === 'community')
+          ?.count,
+      ).toBeGreaterThanOrEqual(1);
       expect(options.suburbs).toContain('Hamilton East');
+      expect(options.cancelledCount).toEqual(expect.any(Number));
     });
 
-    it('supports cost, tag and case-insensitive suburb filters', async () => {
+    it('supports cost, search and case-insensitive suburb filters', async () => {
       const freeResponse = await request(app.getHttpServer())
         .get('/api/v1/activities')
         .query({
           ...publicRange,
           costType: 'free',
-          tag: tagSlug,
+          q: activityTitle,
           suburb: 'hamilton east',
         })
         .expect(200);
@@ -1162,7 +1165,7 @@ describe('Application (e2e)', () => {
 
       const publicResponse = await request(app.getHttpServer())
         .get('/api/v1/activities')
-        .query({ ...publicRange, tag: tagSlug })
+        .query({ ...publicRange, q: activityTitle })
         .expect(200);
       expect(
         (
@@ -1176,7 +1179,7 @@ describe('Application (e2e)', () => {
 
       const cancelledResponse = await request(app.getHttpServer())
         .get('/api/v1/activities')
-        .query({ ...publicRange, status: 'cancelled', tag: tagSlug })
+        .query({ ...publicRange, includeCancelled: true, q: activityTitle })
         .expect(200);
       expect(
         (
@@ -1189,11 +1192,6 @@ describe('Application (e2e)', () => {
           expect.objectContaining({ id: activityId, status: 'cancelled' }),
         ]),
       );
-
-      await request(app.getHttpServer())
-        .get('/api/v1/activities')
-        .query({ ...publicRange, status: 'draft' })
-        .expect(400);
 
       await adminAgent
         .delete(`/api/v1/admin/activities/${activityId}`)

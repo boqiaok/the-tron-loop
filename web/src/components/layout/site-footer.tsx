@@ -4,7 +4,7 @@ export function SiteFooter() {
   return (
     <footer className="border-t bg-secondary">
       <div className="mx-auto flex max-w-[1120px] flex-col gap-3 px-[18px] py-[26px] text-sm text-meta md:flex-row md:items-center md:justify-between md:px-8">
-        <p>© 2026 The Tron Loop · Hamilton, New Zealand</p>
+        <p>© 2026 whatson · Hamilton, New Zealand</p>
         <nav aria-label="Footer navigation" className="flex flex-wrap gap-x-1.5">
           <FooterLink href="/">Plan</FooterLink>
           <span aria-hidden="true">·</span>

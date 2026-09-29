@@ -363,7 +363,7 @@ export function DiscoveryWorkspace() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = "tron-loop-plan.ics";
+      link.download = "whatson-plan.ics";
       link.click();
       URL.revokeObjectURL(url);
     } catch (requestError) {

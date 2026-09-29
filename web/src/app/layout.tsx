@@ -1,10 +1,16 @@
 import type { Metadata } from "next";
-import { Geist_Mono, Newsreader, Outfit } from "next/font/google";
+import { Fredoka, Geist_Mono, Newsreader, Outfit } from "next/font/google";
 import "./globals.css";
 
 const outfit = Outfit({
   variable: "--font-outfit",
   subsets: ["latin"],
+});
+
+const fredoka = Fredoka({
+  variable: "--font-fredoka",
+  subsets: ["latin"],
+  weight: "700",
 });
 
 const geistMono = Geist_Mono({
@@ -21,8 +27,8 @@ const newsreader = Newsreader({
 
 export const metadata: Metadata = {
   title: {
-    default: "The Tron Loop",
-    template: "%s | The Tron Loop",
+    default: "whatson",
+    template: "%s | whatson",
   },
   description: "A weekly guide to events and activities around Hamilton.",
 };
@@ -35,7 +41,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${outfit.variable} ${geistMono.variable} ${newsreader.variable} h-full antialiased`}
+      className={`${outfit.variable} ${fredoka.variable} ${geistMono.variable} ${newsreader.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-background">{children}</body>
     </html>

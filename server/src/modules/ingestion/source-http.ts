@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 
 const MAX_RESPONSE_LENGTH = 2_000_000;
 const DEFAULT_TIMEOUT_MS = 20_000;
-const USER_AGENT = 'TheTronLoop/1.0 (Hamilton activity guide)';
+const USER_AGENT = 'whatson/1.0 (Hamilton activity guide)';
 
 export interface SourceRequest {
   label: string;

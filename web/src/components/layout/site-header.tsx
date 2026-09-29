@@ -26,7 +26,7 @@ export function SiteHeader() {
     >
       {/* Desktop: pill navigation in a 68px bar */}
       <div className="mx-auto hidden h-[68px] max-w-[1120px] items-center justify-between px-8 md:flex">
-        <Link href="/" aria-label="The Tron Loop home" className="hover:no-underline">
+        <Link href="/" aria-label="whatson home" className="hover:no-underline">
           <BrandLogo />
         </Link>
         <nav aria-label="Main navigation" className="flex items-center gap-1">
@@ -55,7 +55,7 @@ export function SiteHeader() {
           Detail pages hide it and show their own back bar instead. */}
       <div className="md:hidden">
         <div className="flex h-14 items-center justify-between px-[18px]">
-          <Link href="/" aria-label="The Tron Loop home" className="hover:no-underline">
+          <Link href="/" aria-label="whatson home" className="hover:no-underline">
             <BrandLogo compact />
           </Link>
           <Link

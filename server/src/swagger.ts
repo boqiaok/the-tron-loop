@@ -3,7 +3,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 export function setupSwagger(app: INestApplication): void {
   const config = new DocumentBuilder()
-    .setTitle('The Tron Loop API')
+    .setTitle('whatson API')
     .setDescription('API for the Hamilton weekly activity guide')
     .setVersion('1.0')
     .addCookieAuth('tron_admin_session')

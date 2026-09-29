@@ -1,6 +1,7 @@
-import { CalendarRange, ExternalLink } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { AdminLogoutButton } from "@/components/admin/admin-logout-button";
+import { BrandMark } from "@/components/layout/brand-logo";
 
 export default function AdminLayout({
   children,
@@ -13,12 +14,12 @@ export default function AdminLayout({
             href="/admin/activities"
             className="inline-flex items-center gap-3 font-semibold text-primary"
           >
-            <span className="grid size-9 place-items-center rounded-lg bg-primary text-primary-foreground">
-              <CalendarRange className="size-5" />
+            <span className="grid size-9 place-items-center rounded-lg bg-[#1F2A44]">
+              <BrandMark className="size-6" />
             </span>
             <span>
               <span className="block text-base leading-tight">
-                The Tron Loop
+                whatson
               </span>
               <span className="block text-xs font-normal text-muted-foreground">
                 Activity administration

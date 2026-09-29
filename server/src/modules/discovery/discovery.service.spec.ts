@@ -155,6 +155,38 @@ describe('discovery planning rules', () => {
     );
   });
 
+  it('treats the family category and children tags from sources as family friendly', async () => {
+    const service = serviceWithDates([
+      activityDate(
+        'storytime',
+        '2026-09-19T00:00:00.000Z',
+        '2026-09-19T01:00:00.000Z',
+        { tags: ['preschoolers'] },
+      ),
+      activityDate(
+        'wiggles',
+        '2026-09-19T01:00:00.000Z',
+        '2026-09-19T02:00:00.000Z',
+        { category: ActivityCategory.Family },
+      ),
+      activityDate(
+        'lecture',
+        '2026-09-19T02:00:00.000Z',
+        '2026-09-19T03:00:00.000Z',
+        { tags: ['youth-and-teens'] },
+      ),
+    ]);
+
+    const result = await service.recommendations(
+      baseIntent({ required: { familyFriendly: true } }),
+    );
+
+    expect(result.items.map(({ activity }) => activity.slug).sort()).toEqual([
+      'storytime',
+      'wiggles',
+    ]);
+  });
+
   it('uses interests as a generic topic search across titles and tags', async () => {
     const service = serviceWithDates([
       activityDate(
@@ -466,6 +498,7 @@ function activityDate(
   endsAt: string,
   options: {
     tags?: string[];
+    category?: ActivityCategory;
     suburb?: string;
     latitude?: number;
     longitude?: number;
@@ -496,6 +529,7 @@ function activityDate(
       summary: null,
       description: 'Test activity',
       imageUrl: null,
+      category: options.category ?? ActivityCategory.Community,
       environment: options.environment ?? ActivityEnvironment.Indoor,
       scheduleMode: options.scheduleMode ?? ActivityScheduleMode.Fixed,
       visitMinutes: options.visitMinutes ?? null,

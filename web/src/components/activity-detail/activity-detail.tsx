@@ -344,7 +344,7 @@ function ListedBy({
         Listed by
       </span>
       <span className="text-sm font-semibold md:text-[15px]">
-        {sourceHost ?? "The Tron Loop"}
+        {sourceHost ?? "whatson"}
       </span>
       <span className="text-[13px] leading-[1.55] text-body">
         Collected {collected}. Details can change — check the source before you
