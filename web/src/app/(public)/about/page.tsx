@@ -4,87 +4,75 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "About",
   description:
-    "Learn how whatson makes Hamilton activities easier to discover.",
+    "whatson is an independent weekly guide to what’s on in Hamilton, built by University of Waikato student Asher Jin.",
 };
 
-const steps = [
-  {
-    title: "Collected every week",
-    description:
-      "Listings come from council, library and community sources and are grouped into Monday-to-Sunday weeks, so you can focus on what is happening now.",
-  },
-  {
-    title: "Quick to scan",
-    description:
-      "Every activity is one compact row with its time, category, place and cost. Filters and search narrow the week without opening dozens of pages.",
-  },
-  {
-    title: "Linked to the source",
-    description:
-      "Each listing points back to the original organiser, where you can confirm the latest details before you go.",
-  },
-];
+const contactEmail = "hello@whson.com";
 
 export default function AboutPage() {
   return (
     <main>
-      <section className="border-b bg-card">
-        <div className="mx-auto flex max-w-[1120px] flex-col gap-3.5 px-[18px] py-10 md:px-8 md:py-16">
-          <span className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
-            About whatson
+      <article className="mx-auto flex max-w-[680px] flex-col items-center px-[18px] py-12 md:px-8 md:py-20">
+        <span className="text-sm font-semibold tracking-[0.12em] text-muted-foreground">
+          Kia ora,
+        </span>
+        <h1 className="mt-3 text-center text-[32px] leading-[1.06] tracking-[-0.035em] md:text-[48px] md:leading-[1.02]">
+          A little about{" "}
+          <span className="font-serif font-normal italic tracking-normal">
+            whatson
           </span>
-          <h1 className="max-w-[720px] text-[32px] leading-[1.06] tracking-[-0.035em] md:text-[52px] md:leading-[1.02]">
-            A simpler way to find what’s on{" "}
-            <span className="font-serif font-normal italic tracking-normal">
-              in Hamilton
-            </span>
-          </h1>
-          <p className="max-w-[640px] text-base leading-[1.6] text-body md:text-[17px]">
-            whatson brings local activities into one practical weekly
-            guide, helping people discover more of their city without the usual
-            searching and tab-hopping.
-          </p>
-        </div>
-      </section>
+        </h1>
+        <hr className="mt-7 w-12 border-t-2 border-foreground/40" />
 
-      <section className="mx-auto grid max-w-[1120px] gap-6 px-[18px] py-10 md:grid-cols-[0.8fr_1.2fr] md:gap-12 md:px-8 md:py-14">
-        <h2 className="text-2xl md:text-[28px]">
-          Local information, without the noise
-        </h2>
-        <div className="flex flex-col gap-4 text-base leading-[1.6] text-body">
+        <div className="mt-8 flex flex-col gap-5 text-base leading-[1.7] text-body md:text-[17px]">
           <p>
-            Hamilton has markets, workshops, performances, family activities
-            and community events happening every week. The information is
-            often spread across organiser websites, social pages and community
-            notices.
+            I’m Asher, a student at the University of Waikato. I started
+            whatson in August 2026 because I kept running into the same
+            problem: I knew there were good things happening in Hamilton, but I
+            only ever found out about them after they’d finished.
           </p>
           <p>
-            whatson does not replace those organisers. It provides a
-            consistent starting point: a weekly overview that is quick to scan
-            on desktop or mobile, with direct links to original sources.
+            The details were out there — scattered across council pages,
+            library calendars, event sites and Facebook posts. Planning a
+            Saturday meant opening a dozen tabs. So I built the page I wished
+            existed: one place to see what’s on in the Tron this week, easy to
+            scan on your phone.
+          </p>
+          <p>
+            whatson brings listings from sources like Eventfinda and Hamilton
+            Libraries into one weekly view, organised Monday to Sunday. You can
+            browse day by day, or describe what you’re looking for —
+            “something free with the kids on Sunday morning” — and get an
+            AI-assisted plan to help you decide.
+          </p>
+          <p>
+            This is an independent, one-person project. It isn’t affiliated
+            with the council or the organisers featured here. Every listing
+            links back to its original source, so please check the latest
+            details there before heading out.
+          </p>
+          <p>
+            I’m still building and improving whatson. Know something good
+            happening in Hamilton? Found a broken link, or have an idea for the
+            site? Send me a note — I’d love to hear it.
           </p>
         </div>
-      </section>
 
-      <section className="mx-auto flex max-w-[1120px] flex-col gap-5 px-[18px] pb-10 md:px-8 md:pb-14">
-        <h2 className="text-2xl md:text-[28px]">How it works</h2>
-        <ol className="grid gap-4 md:grid-cols-3">
-          {steps.map((step, index) => (
-            <li
-              key={step.title}
-              className="flex flex-col gap-2 rounded-[16px] border bg-card p-[22px]"
-            >
-              <span className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
-                Step {index + 1}
-              </span>
-              <h3 className="text-xl">{step.title}</h3>
-              <p className="text-sm leading-[1.55] text-body">
-                {step.description}
-              </p>
-            </li>
-          ))}
-        </ol>
-      </section>
+        <a
+          href={`mailto:${contactEmail}`}
+          className="mt-8 rounded-full bg-primary px-5 py-3 text-[15px] font-semibold text-primary-foreground hover:text-primary-foreground hover:no-underline"
+        >
+          Get in touch →
+        </a>
+
+        <p className="mt-10 self-start text-base leading-[1.5]">
+          — <span className="font-semibold">Asher Jin</span>
+          <br />
+          <span className="font-serif text-muted-foreground italic">
+            University of Waikato
+          </span>
+        </p>
+      </article>
 
       <section className="mx-auto max-w-[1120px] px-[18px] pb-12 md:px-8 md:pb-16">
         <div className="flex flex-col gap-5 rounded-[16px] bg-primary p-[22px] text-primary-foreground md:flex-row md:items-center md:justify-between md:p-8">
