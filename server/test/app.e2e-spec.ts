@@ -357,6 +357,17 @@ describe('Application (e2e)', () => {
     const recurringActivity = regular.find(({ id }) => id === activity.id);
     expect(recurringActivity).toBeDefined();
     expect(recurringActivity?.dates[0]?.recurrenceRule).toContain('INTERVAL=2');
+
+    const weekResponse = await request(app.getHttpServer())
+      .get('/api/v1/activities')
+      .query({
+        from: '2026-09-07T00:00:00+12:00',
+        to: '2026-09-14T00:00:00+12:00',
+        limit: 100,
+      })
+      .expect(200);
+    const week = weekResponse.body as { items: Array<{ id: string }> };
+    expect(week.items.map(({ id }) => id)).not.toContain(activity.id);
   });
 
   it('filters, sorts and bulk publishes administration activities', async () => {

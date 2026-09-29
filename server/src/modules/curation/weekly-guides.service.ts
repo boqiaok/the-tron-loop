@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
 import { toActivityResponse } from '../activities/activity.mapper';
+import { NOT_REGULAR_ACTIVITY } from '../activities/activity-recurrence';
 import { Activity } from '../activities/entities/activity.entity';
 import { ActivityStatus } from '../activities/enums/activity-status.enum';
 import { NO_SOURCE_SIGNALS } from '../ingestion/source-signals';
@@ -180,6 +181,7 @@ export class WeeklyGuidesService {
       .where('activity.status IN (:...statuses)', {
         statuses: [ActivityStatus.Draft, ActivityStatus.Published],
       })
+      .andWhere(NOT_REGULAR_ACTIVITY)
       .andWhere('weekDate.startsAt >= :from AND weekDate.startsAt < :to', {
         from: week.from,
         to: week.to,

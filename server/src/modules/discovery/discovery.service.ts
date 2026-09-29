@@ -10,6 +10,7 @@ import { ActivityDate } from '../activities/entities/activity-date.entity';
 import { ActivityCategory } from '../activities/enums/activity-category.enum';
 import { ActivityEnvironment } from '../activities/enums/activity-environment.enum';
 import { ActivityCostType } from '../activities/enums/activity-cost-type.enum';
+import { NOT_REGULAR_ACTIVITY } from '../activities/activity-recurrence';
 import { ActivityStatus } from '../activities/enums/activity-status.enum';
 import { DurationSource } from '../activities/enums/duration-source.enum';
 import { generatePlan, validatePlan, type PlanningItem } from './plan-engine';
@@ -292,6 +293,7 @@ export class DiscoveryService {
       .leftJoinAndSelect('activityTag.tag', 'tag')
       .leftJoinAndSelect('activity.dates', 'allDates')
       .where('activity.status = :status', { status: ActivityStatus.Published })
+      .andWhere(NOT_REGULAR_ACTIVITY)
       .andWhere('date.startsAt < :to', { to })
       .andWhere('date.endsAt > :from', { from })
       .andWhere('date.endsAt IS NOT NULL')

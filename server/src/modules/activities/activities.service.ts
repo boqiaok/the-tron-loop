@@ -13,6 +13,7 @@ import {
   Repository,
   SelectQueryBuilder,
 } from 'typeorm';
+import { NOT_REGULAR_ACTIVITY } from './activity-recurrence';
 import { createSlug, MAX_SLUG_LENGTH } from './activity-slug';
 import { toActivityResponse, toAdminActivityResponse } from './activity.mapper';
 import { isPostgresUniqueViolation } from './database-error';
@@ -302,10 +303,11 @@ export class ActivitiesService {
           'matchingDate',
           'matchingDate.startsAt >= :from AND matchingDate.startsAt < :to',
           { from, to },
-        );
+        )
+        .where(NOT_REGULAR_ACTIVITY);
     const [categoryRows, suburbs, cancelled] = await Promise.all([
       inRange()
-        .where('activity.status = :published', {
+        .andWhere('activity.status = :published', {
           published: ActivityStatus.Published,
         })
         .select('activity.category', 'category')
@@ -314,7 +316,7 @@ export class ActivitiesService {
         .getRawMany<{ category: ActivityCategory; count: string }>(),
       inRange()
         .innerJoin('activity.venue', 'venue')
-        .where('activity.status = :published', {
+        .andWhere('activity.status = :published', {
           published: ActivityStatus.Published,
         })
         .andWhere('venue.suburb IS NOT NULL')
@@ -323,7 +325,7 @@ export class ActivitiesService {
         .orderBy('venue.suburb', 'ASC')
         .getRawMany<{ suburb: string }>(),
       inRange()
-        .where('activity.status = :cancelled', {
+        .andWhere('activity.status = :cancelled', {
           cancelled: ActivityStatus.Cancelled,
         })
         .select('COUNT(DISTINCT activity.id)', 'count')
@@ -685,7 +687,8 @@ export class ActivitiesService {
 
     queryBuilder
       .andWhere('matchingDate.startsAt >= :from', { from })
-      .andWhere('matchingDate.startsAt < :to', { to });
+      .andWhere('matchingDate.startsAt < :to', { to })
+      .andWhere(NOT_REGULAR_ACTIVITY);
 
     if (query.evening) {
       queryBuilder.andWhere(
