@@ -13,7 +13,7 @@ import {
   Repository,
   SelectQueryBuilder,
 } from 'typeorm';
-import { createSlug } from './activity-slug';
+import { createSlug, MAX_SLUG_LENGTH } from './activity-slug';
 import { toActivityResponse, toAdminActivityResponse } from './activity.mapper';
 import { isPostgresUniqueViolation } from './database-error';
 import { ActivityDateInputDto } from './dto/activity-date-input.dto';
@@ -766,8 +766,10 @@ export class ActivitiesService {
       throw new BadRequestException('Title must produce a non-empty slug');
     }
 
-    if (slug.length > 220) {
-      throw new BadRequestException('Slug must not exceed 220 characters');
+    if (slug.length > MAX_SLUG_LENGTH) {
+      throw new BadRequestException(
+        `Slug must not exceed ${MAX_SLUG_LENGTH} characters`,
+      );
     }
 
     return slug;

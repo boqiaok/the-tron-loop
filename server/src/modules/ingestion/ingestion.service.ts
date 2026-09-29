@@ -8,7 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { createHash } from 'node:crypto';
 import { Repository } from 'typeorm';
 import { ActivitiesService } from '../activities/activities.service';
-import { createSlug } from '../activities/activity-slug';
+import { createSlug, findAvailableSlug } from '../activities/activity-slug';
 import { Activity } from '../activities/entities/activity.entity';
 import { Tag } from '../activities/entities/tag.entity';
 import { Venue } from '../activities/entities/venue.entity';
@@ -396,12 +396,11 @@ export class IngestionService {
             outcome = ImportItemOutcome.Updated;
           }
         } else {
-          const externalSlug =
-            createSlug(item.externalId).slice(0, 60) || run.id.slice(0, 8);
-          const titleSlug = createSlug(item.title).slice(0, 150) || 'activity';
           const created = await this.activitiesService.create({
             ...input,
-            slug: `${titleSlug}-${externalSlug}`.slice(0, 220),
+            slug: await findAvailableSlug(item.title, (slug) =>
+              this.activities.exists({ where: { slug } }),
+            ),
           });
           activityId = created.id;
           outcome = ImportItemOutcome.Created;
