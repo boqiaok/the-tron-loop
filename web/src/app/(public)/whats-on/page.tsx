@@ -19,6 +19,7 @@ export const metadata: Metadata = {
   title: "What’s on",
   description:
     "Browse this week, next week, regular and past activities around Hamilton.",
+  alternates: { canonical: "/whats-on" },
 };
 
 export default async function WhatsOnPage({

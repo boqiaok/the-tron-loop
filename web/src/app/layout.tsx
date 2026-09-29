@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Fredoka, Geist_Mono, Newsreader, Outfit } from "next/font/google";
+import { SITE_NAME, SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 const outfit = Outfit({
@@ -26,11 +27,19 @@ const newsreader = Newsreader({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: "whatson",
-    template: "%s | whatson",
+    default: SITE_NAME,
+    template: `%s | ${SITE_NAME}`,
   },
-  description: "A weekly guide to events and activities around Hamilton.",
+  description:
+    "A weekly guide to events, markets and things to do around Hamilton and the Waikato.",
+  openGraph: {
+    type: "website",
+    siteName: SITE_NAME,
+    locale: "en_NZ",
+  },
+  twitter: { card: "summary_large_image" },
 };
 
 export default function RootLayout({

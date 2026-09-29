@@ -5,6 +5,7 @@ export const metadata: Metadata = {
   title: "About",
   description:
     "whatson is an independent weekly guide to what’s on in Hamilton, built by University of Waikato student Asher Jin.",
+  alternates: { canonical: "/about" },
 };
 
 const contactEmail = "hello@whson.com";

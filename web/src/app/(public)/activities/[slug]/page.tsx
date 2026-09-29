@@ -7,8 +7,10 @@ import { ActivityDetail } from "@/components/activity-detail/activity-detail";
 import { getBackTarget, pickOccurrence } from "@/lib/activities/detail";
 import { EMPTY_FILTERS, type SearchParams } from "@/lib/activities/filters";
 import type { Occurrence } from "@/lib/activities/occurrences";
+import { getEventJsonLd } from "@/lib/activities/structured-data";
 import { getActivities, getActivity } from "@/lib/api/activities";
 import { ACTIVITY_TIME_ZONE } from "@/lib/dates/week-range";
+import { SITE_NAME } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
@@ -20,9 +22,22 @@ export async function generateMetadata({
   params: Params;
 }): Promise<Metadata> {
   const activity = await getActivity((await params).slug);
-  return activity
-    ? { title: activity.title, description: activity.summary ?? undefined }
-    : { title: "Activity not found" };
+  if (!activity) return { title: "Activity not found" };
+
+  const description = activity.summary ?? undefined;
+  return {
+    title: activity.title,
+    description,
+    alternates: { canonical: `/activities/${activity.slug}` },
+    openGraph: {
+      type: "website",
+      siteName: SITE_NAME,
+      locale: "en_NZ",
+      title: activity.title,
+      description,
+      images: activity.imageUrl ? [activity.imageUrl] : undefined,
+    },
+  };
 }
 
 export default async function ActivityPage({
@@ -44,14 +59,25 @@ export default async function ActivityPage({
   const ended = new Date(date.endsAt ?? date.startsAt) < new Date();
 
   return (
-    <ActivityDetail
-      activity={activity}
-      date={date}
-      back={getBackTarget(date)}
-      nearby={nearby.occurrences}
-      nearbyTotal={nearby.total}
-      canPlan={activity.status !== "cancelled" && !ended && !date.isAllDay}
-    />
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(getEventJsonLd(activity, date)).replace(
+            /</g,
+            "\\u003c",
+          ),
+        }}
+      />
+      <ActivityDetail
+        activity={activity}
+        date={date}
+        back={getBackTarget(date)}
+        nearby={nearby.occurrences}
+        nearbyTotal={nearby.total}
+        canPlan={activity.status !== "cancelled" && !ended && !date.isAllDay}
+      />
+    </>
   );
 }
 

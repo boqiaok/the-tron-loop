@@ -1,7 +1,12 @@
 import { ExternalLink } from "lucide-react";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { AdminLogoutButton } from "@/components/admin/admin-logout-button";
 import { BrandMark } from "@/components/layout/brand-logo";
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 export default function AdminLayout({
   children,

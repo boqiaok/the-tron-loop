@@ -20,6 +20,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Plan your day in Hamilton",
+  alternates: { canonical: "/" },
 };
 
 export default async function Home() {
