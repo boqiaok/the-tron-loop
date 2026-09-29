@@ -3,6 +3,7 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { createHash, randomBytes } from 'node:crypto';
@@ -91,9 +92,7 @@ export class AuthService {
 
   async createAdmin(email: string, password: string): Promise<AdminUser> {
     const normalizedEmail = normalizeEmail(email);
-    if (password.length < 12) {
-      throw new Error('ADMIN_PASSWORD must contain at least 12 characters');
-    }
+    assertPasswordLength(password);
     if (await this.adminUsers.existsBy({ email: normalizedEmail })) {
       throw new ConflictException('An administrator with this email exists');
     }
@@ -105,6 +104,21 @@ export class AuthService {
         isActive: true,
       }),
     );
+  }
+
+  async setPassword(email: string, password: string): Promise<AdminUser> {
+    assertPasswordLength(password);
+    const user = await this.adminUsers.findOneBy({
+      email: normalizeEmail(email),
+    });
+    if (!user) {
+      throw new NotFoundException('No administrator with this email exists');
+    }
+
+    user.passwordHash = await hashPassword(password);
+    await this.adminUsers.save(user);
+    await this.adminSessions.delete({ adminUserId: user.id });
+    return user;
   }
 
   private assertLoginAllowed(key: string): void {
@@ -137,6 +151,12 @@ export class AuthService {
 
 export function hashSessionToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
+}
+
+function assertPasswordLength(password: string): void {
+  if (password.length < 12) {
+    throw new Error('ADMIN_PASSWORD must contain at least 12 characters');
+  }
 }
 
 function normalizeEmail(email: string): string {

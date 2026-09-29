@@ -17,6 +17,7 @@
     "seed:dev": "pnpm --filter server seed:dev",
     "seed:regular": "pnpm --filter server seed:regular",
     "admin:create": "pnpm --filter server admin:create",
+    "admin:set-password": "pnpm --filter server admin:set-password",
     "categories:reclassify": "pnpm --filter server categories:reclassify"
   }
 }

@@ -25,6 +25,7 @@
     "seed:dev": "ts-node src/database/seeds/dev-activities.ts",
     "seed:regular": "ts-node src/database/seeds/regular-activities.ts",
     "admin:create": "ts-node src/database/seeds/create-admin.ts",
+    "admin:set-password": "ts-node src/database/seeds/set-admin-password.ts",
     "categories:reclassify": "ts-node src/database/scripts/reclassify-categories.ts"
   },
   "dependencies": {

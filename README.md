@@ -22,7 +22,14 @@ cp server/.env.example server/.env
 cp web/.env.example web/.env
 pnpm migration:run
 pnpm seed:dev
-ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=change-me pnpm admin:create
+ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=change-me-please pnpm admin:create
+```
+
+Admin passwords need at least 12 characters. To change one later, which also
+signs that administrator out everywhere:
+
+```bash
+ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=new-long-password pnpm admin:set-password
 ```
 
 Then run the API and the website in separate terminals:
