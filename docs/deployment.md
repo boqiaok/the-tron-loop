@@ -26,14 +26,12 @@ the server over SSH. The server never builds images itself.
 4. SSL/TLS → Origin Server: create an origin certificate covering
    `example.com` and `*.example.com`. Keep the certificate and private key for
    step 3 of the server setup.
-5. R2 Object Storage: create the buckets `whson-media` (production) and
-   `whson-media-dev` (local development) with the location hint
-   **Western North America**.
+5. R2 Object Storage: create the bucket `whson-media` with the location hint
+   **Western North America**. Local development uses the same bucket.
 6. `whson-media` → Settings → Custom Domains: connect `media.example.com`.
-   `whson-media-dev` → Settings: enable the public development URL
-   (`https://pub-….r2.dev`) for local use.
+   Keep the public development URL (`r2.dev`) disabled.
 7. R2 → Manage API tokens: create an **Object Read & Write** token scoped to
-   both buckets. Keep the access key ID, secret access key and account ID.
+   the bucket. Keep the access key ID, secret access key and account ID.
 
 ### 2. Server
 
