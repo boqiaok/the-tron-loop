@@ -33,7 +33,7 @@ export default function AboutPage() {
             only ever found out about them after they’d finished.
           </p>
           <p>
-            The details were out there — scattered across council pages,
+            The details were out there, but scattered across council pages,
             library calendars, event sites and Facebook posts. Planning a
             Saturday meant opening a dozen tabs. So I built the page I wished
             existed: one place to see what’s on in the Tron this week, easy to
@@ -42,8 +42,8 @@ export default function AboutPage() {
           <p>
             whatson brings listings from sources like Eventfinda and Hamilton
             Libraries into one weekly view, organised Monday to Sunday. You can
-            browse day by day, or describe what you’re looking for —
-            “something free with the kids on Sunday morning” — and get an
+            browse day by day, or describe what you’re looking for, like
+            “something free with the kids on Sunday morning”, and get an
             AI-assisted plan to help you decide.
           </p>
           <p>
@@ -55,7 +55,7 @@ export default function AboutPage() {
           <p>
             I’m still building and improving whatson. Know something good
             happening in Hamilton? Found a broken link, or have an idea for the
-            site? Send me a note — I’d love to hear it.
+            site? Send me a note. I’d love to hear it.
           </p>
         </div>
 
@@ -66,13 +66,7 @@ export default function AboutPage() {
           Get in touch →
         </a>
 
-        <p className="mt-10 self-start text-base leading-[1.5]">
-          — <span className="font-semibold">Asher Jin</span>
-          <br />
-          <span className="font-serif text-muted-foreground italic">
-            University of Waikato
-          </span>
-        </p>
+        <p className="mt-10 self-start text-base font-semibold">Asher Jin</p>
       </article>
 
       <section className="mx-auto max-w-[1120px] px-[18px] pb-12 md:px-8 md:pb-16">
