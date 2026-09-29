@@ -13,7 +13,8 @@ import { DurationSource } from '../../modules/activities/enums/duration-source.e
 /**
  * Weekly activities for the "Regular" tab, aimed at international students
  * learning and practising English. Activities are created as drafts so an
- * editor can review them; existing slugs are left untouched.
+ * editor can review them; existing slugs are left untouched. Existing venues
+ * only have their blank address, suburb and coordinates filled in.
  */
 
 type Weekday = 'MO' | 'TU' | 'WE' | 'TH' | 'FR' | 'SA' | 'SU';
@@ -45,29 +46,58 @@ interface RegularActivity {
 
 const TERM_4_END = '20261218';
 
-const venues = [
+/** Coordinates from OpenStreetMap; addresses from each organiser. */
+const venues: Array<
+  Pick<Venue, 'name' | 'address' | 'suburb' | 'latitude' | 'longitude'>
+> = [
   {
     name: 'University of Waikato',
     address: 'Knighton Road',
     suburb: 'Hillcrest',
+    latitude: -37.7837,
+    longitude: 175.3151,
   },
   {
     name: 'Central Library, Hamilton',
     address: 'Garden Place',
     suburb: 'Hamilton Central',
+    latitude: -37.78808,
+    longitude: 175.28251,
   },
-  { name: 'Whitiora Bible Church', address: '24 Abbotsford Street' },
-  { name: 'Shama Hamilton', address: '8 Liverpool Street' },
+  {
+    name: 'Whitiora Bible Church',
+    address: '24 Abbotsford Street',
+    suburb: 'Whitiora',
+    latitude: -37.77649,
+    longitude: 175.27009,
+  },
+  {
+    name: 'Shama Hamilton',
+    address: '8 Liverpool Street',
+    suburb: 'Hamilton Central',
+    latitude: -37.77914,
+    longitude: 175.27668,
+  },
   {
     name: 'Shama Cooking & Conversation',
     address: '27 Beatty Street',
     suburb: 'Melville',
+    latitude: -37.80892,
+    longitude: 175.28438,
   },
-  { name: 'Agora Church', address: null },
+  {
+    name: 'Agora Church',
+    address: '13B Kent Street',
+    suburb: 'Frankton',
+    latitude: -37.78864,
+    longitude: 175.265,
+  },
   {
     name: "St Alban's Church, Chartwell",
     address: '126 Comries Road',
     suburb: 'Chartwell',
+    latitude: -37.75248,
+    longitude: 175.27763,
   },
 ];
 
@@ -265,16 +295,17 @@ async function seed(): Promise<void> {
       const tagBySlug = new Map<string, Tag>();
 
       for (const input of venues) {
-        const venue =
-          (await venueRepository.findOneBy({ name: input.name })) ??
-          (await venueRepository.save(
-            venueRepository.create({
-              ...input,
-              suburb: input.suburb ?? null,
-              city: 'Hamilton',
-            }),
-          ));
-        venueByName.set(input.name, venue);
+        const existing = await venueRepository.findOneBy({ name: input.name });
+        // Only fill blanks, so details an editor has changed are kept.
+        const venue = existing
+          ? venueRepository.merge(existing, {
+              address: existing.address ?? input.address,
+              suburb: existing.suburb ?? input.suburb,
+              latitude: existing.latitude ?? input.latitude,
+              longitude: existing.longitude ?? input.longitude,
+            })
+          : venueRepository.create({ ...input, city: 'Hamilton' });
+        venueByName.set(input.name, await venueRepository.save(venue));
       }
 
       for (const input of tags) {
