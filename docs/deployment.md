@@ -26,11 +26,15 @@ the server over SSH. The server never builds images itself.
 4. SSL/TLS → Origin Server: create an origin certificate covering
    `example.com` and `*.example.com`. Keep the certificate and private key for
    step 3 of the server setup.
-5. R2 Object Storage: create the bucket `whson-media` with the location hint
+5. SSL/TLS → Origin Server → Authenticated Origin Pulls: enable **Global**.
+   Caddy rejects any TLS connection that does not present Cloudflare's client
+   certificate, so the server cannot be reached by IP address. Enable this
+   before the first deploy, or the site returns errors.
+6. R2 Object Storage: create the bucket `whson-media` with the location hint
    **Western North America**. Local development uses the same bucket.
-6. `whson-media` → Settings → Custom Domains: connect `media.example.com`.
+7. `whson-media` → Settings → Custom Domains: connect `media.example.com`.
    Keep the public development URL (`r2.dev`) disabled.
-7. R2 → Manage API tokens: create an **Object Read & Write** token scoped to
+8. R2 → Manage API tokens: create an **Object Read & Write** token scoped to
    the bucket. Keep the access key ID, secret access key and account ID.
 
 ### 2. Server
@@ -150,3 +154,17 @@ docker compose -f docker-compose.prod.yml logs -f server
 Neon provides point-in-time restore for the database. Uploaded images live in
 R2, so the server holds no data that needs backing up besides `.env`,
 `server/.env` and the origin certificate.
+
+Each container keeps at most three 10 MB log files.
+
+`infrastructure/caddy/cloudflare-origin-pull-ca.pem` is Cloudflare's public
+Authenticated Origin Pulls CA from
+https://developers.cloudflare.com/ssl/static/authenticated_origin_pull_ca.pem.
+It expires on 1 November 2029; replace it with Cloudflare's current CA before
+then.
+
+## Monitoring
+
+An UptimeRobot keyword monitor checks `https://example.com/api/v1/health` every
+five minutes and alerts when the response does not contain `"status":"ok"`.
+The endpoint returns 503 when the database is unreachable.

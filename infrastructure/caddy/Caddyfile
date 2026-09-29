@@ -8,7 +8,13 @@
 }
 
 (cloudflare_origin_tls) {
-	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key {
+		# Authenticated Origin Pulls: only Cloudflare can complete the TLS handshake.
+		client_auth {
+			mode require_and_verify
+			trust_pool file /etc/caddy/cloudflare-origin-pull-ca.pem
+		}
+	}
 }
 
 www.{$SITE_DOMAIN} {

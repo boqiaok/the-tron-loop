@@ -1,3 +1,9 @@
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   caddy:
     image: caddy:2-alpine
@@ -9,6 +15,7 @@ services:
       - "443:443"
     volumes:
       - ./infrastructure/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./infrastructure/caddy/cloudflare-origin-pull-ca.pem:/etc/caddy/cloudflare-origin-pull-ca.pem:ro
       - ./infrastructure/caddy/certs:/etc/caddy/certs:ro
       - caddy_data:/data
       - caddy_config:/config
@@ -18,6 +25,7 @@ services:
       web:
         condition: service_started
     mem_limit: 128m
+    logging: *logging
 
   server:
     image: ghcr.io/boqiaok/the-tron-loop-server:${IMAGE_TAG:-latest}
@@ -36,6 +44,7 @@ services:
       timeout: 5s
       retries: 12
     mem_limit: 384m
+    logging: *logging
 
   web:
     image: ghcr.io/boqiaok/the-tron-loop-web:${IMAGE_TAG:-latest}
@@ -44,6 +53,7 @@ services:
       NODE_ENV: production
       INTERNAL_API_BASE_URL: http://server:3001/api/v1
     mem_limit: 384m
+    logging: *logging
 
 volumes:
   caddy_data:
