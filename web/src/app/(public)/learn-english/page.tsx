@@ -12,7 +12,7 @@ const ENGLISH_TOPIC = "english";
 export const metadata: Metadata = {
   title: "Learn English in Hamilton: conversation groups and classes",
   description:
-    "Weekly English conversation groups, classes and speaking clubs around Hamilton, with days, times, venues and costs in one place.",
+    "Free and low-cost English conversation groups in Hamilton, open to everyone including international students. Days, times and venues in one place.",
   alternates: { canonical: "/learn-english" },
 };
 
@@ -44,9 +44,10 @@ export default async function LearnEnglishPage() {
               {activities.length === 1
                 ? "whatson lists one of them below,"
                 : `whatson lists ${activities.length} of them below,`}{" "}
-              grouped by the day they meet. Open a listing to see its cost,
-              level and who it is for. Times can change, so check with the
-              organiser before you go.
+              grouped by the day they meet. All of them are open to everyone,
+              including international students and visitors, whatever your
+              visa. Open a listing to see its cost and level. Times can change,
+              so check with the organiser before you go.
             </p>
           </div>
         </div>
