@@ -19,7 +19,9 @@ import {
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Plan your day in Hamilton",
+  title: "What’s on in Hamilton this week",
+  description:
+    "Things to do in Hamilton this week and weekend: markets, workshops, music and family activities from council, library and community sources.",
   alternates: { canonical: "/" },
 };
 
