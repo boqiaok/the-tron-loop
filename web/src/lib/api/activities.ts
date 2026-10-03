@@ -4,7 +4,10 @@ import type {
   ActivityFilters,
   PaginatedActivities,
 } from "@/types/activity";
-import { API_BASE_URL } from "@/lib/api/config";
+import {
+  API_BASE_URL,
+  PUBLIC_DATA_REVALIDATE_SECONDS,
+} from "@/lib/api/config";
 import { readJson } from "@/lib/api/json";
 import { narrowRange } from "@/lib/activities/filters";
 
@@ -17,7 +20,7 @@ export interface ActivityRange {
 
 async function fetchJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    cache: "no-store",
+    next: { revalidate: PUBLIC_DATA_REVALIDATE_SECONDS },
     headers: { Accept: "application/json" },
     signal,
   });
@@ -108,7 +111,10 @@ export async function getActivityCount(range: ActivityRange): Promise<number> {
 export async function getActivity(slug: string): Promise<Activity | null> {
   const response = await fetch(
     `${API_BASE_URL}/activities/${encodeURIComponent(slug)}`,
-    { cache: "no-store", headers: { Accept: "application/json" } },
+    {
+      next: { revalidate: PUBLIC_DATA_REVALIDATE_SECONDS },
+      headers: { Accept: "application/json" },
+    },
   );
   if (response.status === 404 || response.status === 400) return null;
   if (!response.ok) {
