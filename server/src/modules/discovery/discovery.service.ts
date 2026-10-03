@@ -4,8 +4,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { TZDateMini } from '@date-fns/tz';
 import { GoogleGenAI } from '@google/genai';
 import Ajv from 'ajv';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { toActivityResponse } from '../activities/activity.mapper';
+import { Activity } from '../activities/entities/activity.entity';
 import { ActivityDate } from '../activities/entities/activity-date.entity';
 import { ActivityCategory } from '../activities/enums/activity-category.enum';
 import { ActivityEnvironment } from '../activities/enums/activity-environment.enum';
@@ -62,6 +63,8 @@ export class DiscoveryService {
   constructor(
     @InjectRepository(ActivityDate)
     private readonly activityDates: Repository<ActivityDate>,
+    @InjectRepository(Activity)
+    private readonly activities: Repository<Activity>,
     private readonly config: ConfigService,
   ) {}
 
@@ -287,11 +290,7 @@ export class DiscoveryService {
     const { from, to } = searchWindow(intent, scope);
     const dates = await this.activityDates
       .createQueryBuilder('date')
-      .innerJoinAndSelect('date.activity', 'activity')
-      .leftJoinAndSelect('activity.venue', 'venue')
-      .leftJoinAndSelect('activity.activityTags', 'activityTag')
-      .leftJoinAndSelect('activityTag.tag', 'tag')
-      .leftJoinAndSelect('activity.dates', 'allDates')
+      .innerJoin('date.activity', 'activity')
       .where('activity.status = :status', { status: ActivityStatus.Published })
       .andWhere(NOT_REGULAR_ACTIVITY)
       .andWhere('date.startsAt < :to', { to })
@@ -300,6 +299,18 @@ export class DiscoveryService {
       .andWhere('date.isAllDay = false')
       .orderBy('date.startsAt', 'ASC')
       .getMany();
+    // Load each matching activity once rather than once per matching date.
+    const activities = dates.length
+      ? await this.activities.find({
+          where: { id: In([...new Set(dates.map((date) => date.activityId))]) },
+          relations: { venue: true, dates: true, activityTags: { tag: true } },
+        })
+      : [];
+    const activityById = new Map(
+      activities.map((activity) => [activity.id, activity]),
+    );
+    for (const date of dates)
+      date.activity = activityById.get(date.activityId)!;
 
     return dates
       .filter((date) => matchesIntentFilters(date, intent))

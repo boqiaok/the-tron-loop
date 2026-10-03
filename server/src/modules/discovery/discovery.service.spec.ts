@@ -479,15 +479,18 @@ function candidate(
 
 function serviceWithDates(dates: unknown[]): DiscoveryService {
   const query = {
-    innerJoinAndSelect: jest.fn().mockReturnThis(),
-    leftJoinAndSelect: jest.fn().mockReturnThis(),
+    innerJoin: jest.fn().mockReturnThis(),
     where: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
     orderBy: jest.fn().mockReturnThis(),
     getMany: jest.fn().mockResolvedValue(dates),
   };
+  const activities = (dates as Array<{ activity: unknown }>).map(
+    (date) => date.activity,
+  );
   return new DiscoveryService(
     { createQueryBuilder: jest.fn(() => query) } as never,
+    { find: jest.fn().mockResolvedValue(activities) } as never,
     { get: jest.fn() } as never,
   );
 }

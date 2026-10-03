@@ -37,6 +37,7 @@ describe('Gemini discovery parsing', () => {
     );
     service = new DiscoveryService(
       {} as never,
+      {} as never,
       new ConfigService({ GEMINI_API_KEY: 'test-key' }),
     );
     createInteraction.mockResolvedValue({ output_text: JSON.stringify(valid) });
@@ -76,6 +77,7 @@ describe('Gemini discovery parsing', () => {
 
   it('honors the configured model', async () => {
     service = new DiscoveryService(
+      {} as never,
       {} as never,
       new ConfigService({
         GEMINI_API_KEY: 'test-key',
@@ -154,6 +156,7 @@ describe('Gemini discovery parsing', () => {
     async (key) => {
       service = new DiscoveryService(
         {} as never,
+        {} as never,
         new ConfigService({ GEMINI_API_KEY: key }),
       );
       expect(await service.parse(input)).toMatchObject({
@@ -225,6 +228,7 @@ describe('Gemini discovery parsing', () => {
 
   it('keeps a generic topic search when Gemini is unavailable', async () => {
     service = new DiscoveryService(
+      {} as never,
       {} as never,
       new ConfigService({ GEMINI_API_KEY: '' }),
     );

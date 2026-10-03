@@ -56,6 +56,9 @@ import { CurationModule } from './modules/curation/curation.module';
         autoLoadEntities: true,
         synchronize: false,
         migrationsRun: false,
+        // Joining several to-many relations repeats every activity column once
+        // per date and tag combination; separate queries send each row once.
+        relationLoadStrategy: 'query',
         retryAttempts:
           configService.getOrThrow<string>('NODE_ENV') === 'test' ? 1 : 10,
         logging:
