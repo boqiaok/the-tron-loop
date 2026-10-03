@@ -155,6 +155,15 @@ Neon provides point-in-time restore for the database. Uploaded images live in
 R2, so the server holds no data that needs backing up besides `.env`,
 `server/.env` and the origin certificate.
 
+The server keeps public API responses in memory and discards them whenever it
+writes activities, venues, tags or weekly guides. Changes made outside the
+server process, such as seed or maintenance scripts or direct SQL, appear only
+after a day or a restart:
+
+```bash
+docker compose -f docker-compose.prod.yml restart server
+```
+
 Each container keeps at most three 10 MB log files.
 
 `infrastructure/caddy/cloudflare-origin-pull-ca.pem` is Cloudflare's public

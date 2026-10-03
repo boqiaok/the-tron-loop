@@ -1,7 +1,4 @@
-import {
-  API_BASE_URL,
-  PUBLIC_DATA_REVALIDATE_SECONDS,
-} from "@/lib/api/config";
+import { API_BASE_URL } from "@/lib/api/config";
 import { readJson } from "@/lib/api/json";
 import type { WeeklyGuide } from "@/types/weekly-guide";
 
@@ -11,10 +8,7 @@ export async function getWeeklyGuide(
 ): Promise<WeeklyGuide | null> {
   const response = await fetch(
     `${API_BASE_URL}/weekly-guides/${encodeURIComponent(weekStart)}`,
-    {
-      next: { revalidate: PUBLIC_DATA_REVALIDATE_SECONDS },
-      headers: { Accept: "application/json" },
-    },
+    { cache: "no-store", headers: { Accept: "application/json" } },
   );
   if (response.status === 404) return null;
   if (!response.ok) {

@@ -1,5 +1,6 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseInterceptors } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { PublicCacheInterceptor } from '../public-cache/public-cache.interceptor';
 import { ActivitiesService } from './activities.service';
 import { ActivityFilterOptionsResponseDto } from './dto/activity-filter-options-response.dto';
 import {
@@ -14,6 +15,7 @@ import {
 
 @ApiTags('activities')
 @Controller('activities')
+@UseInterceptors(PublicCacheInterceptor)
 export class ActivitiesController {
   constructor(private readonly activitiesService: ActivitiesService) {}
 

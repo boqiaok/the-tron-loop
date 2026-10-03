@@ -13,11 +13,13 @@ import { TagsService } from './tags.service';
 import { VenuesController } from './venues.controller';
 import { VenuesService } from './venues.service';
 import { AuthModule } from '../auth/auth.module';
+import { PublicCacheModule } from '../public-cache/public-cache.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Activity, ActivityDate, Venue, Tag, ActivityTag]),
     AuthModule,
+    PublicCacheModule,
   ],
   controllers: [
     AdminActivitiesController,

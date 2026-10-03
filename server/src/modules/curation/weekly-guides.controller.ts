@@ -1,16 +1,18 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, UseInterceptors } from '@nestjs/common';
 import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { PublicCacheInterceptor } from '../public-cache/public-cache.interceptor';
 import { WeekStartParamDto } from './dto/week-start-param.dto';
 import { WeeklyGuideResponseDto } from './dto/weekly-guide-response.dto';
 import { WeeklyGuidesService } from './weekly-guides.service';
 
 @ApiTags('weekly guides')
 @Controller('weekly-guides')
+@UseInterceptors(PublicCacheInterceptor)
 export class WeeklyGuidesController {
   constructor(private readonly weeklyGuidesService: WeeklyGuidesService) {}
 

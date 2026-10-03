@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Activity } from '../activities/entities/activity.entity';
 import { AuthModule } from '../auth/auth.module';
+import { PublicCacheModule } from '../public-cache/public-cache.module';
 import { ImportItem } from '../ingestion/entities/import-item.entity';
 import { AdminActivityReviewController } from './admin-activity-review.controller';
 import { ActivityReviewService } from './activity-review.service';
@@ -21,6 +22,7 @@ import { WeeklyGuidesService } from './weekly-guides.service';
       ImportItem,
     ]),
     AuthModule,
+    PublicCacheModule,
   ],
   controllers: [
     AdminActivityReviewController,
