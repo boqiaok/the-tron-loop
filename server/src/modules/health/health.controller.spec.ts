@@ -60,4 +60,10 @@ describe('HealthController', () => {
     expect(typeOrmHealthIndicator.pingCheck).toHaveBeenCalledWith('database');
     expect(healthCheckService.check).toHaveBeenCalledTimes(1);
   });
+
+  it('reports liveness without querying the database', async () => {
+    await expect(controller.live()).resolves.toEqual(result);
+    expect(healthCheckService.check).toHaveBeenCalledWith([]);
+    expect(typeOrmHealthIndicator.pingCheck).not.toHaveBeenCalled();
+  });
 });

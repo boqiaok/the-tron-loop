@@ -174,6 +174,14 @@ then.
 
 ## Monitoring
 
-An UptimeRobot keyword monitor checks `https://example.com/api/v1/health` every
-five minutes and alerts when the response does not contain `"status":"ok"`.
-The endpoint returns 503 when the database is unreachable.
+Two UptimeRobot keyword monitors alert when the response does not contain
+`"status":"ok"`:
+
+| URL | Interval | Checks |
+| --- | --- | --- |
+| `https://example.com/api/v1/health/live` | 5 minutes | Cloudflare, Caddy and the server |
+| `https://example.com/api/v1/health` | 60 minutes | The database (503 when unreachable) |
+
+Every database check wakes Neon's compute, which then runs until it has been
+idle for five minutes, so checking the database every five minutes would keep
+it running all day. The container healthcheck also uses `/api/v1/health/live`.

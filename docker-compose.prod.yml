@@ -39,7 +39,7 @@ services:
       PUBLIC_API_URL: https://${SITE_DOMAIN}
       ADMIN_COOKIE_SECURE: "true"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/api/v1/health >/dev/null || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/api/v1/health/live >/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 12
