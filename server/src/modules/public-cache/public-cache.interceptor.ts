@@ -8,8 +8,12 @@ import type { Request } from 'express';
 import { Observable, of, tap } from 'rxjs';
 import { PublicCacheService } from './public-cache.service';
 
-/** Searches and locations differ per visitor, so caching them rarely helps. */
-const PERSONAL_QUERY_PARAMETERS = ['q', 'latitude', 'longitude'];
+/**
+ * Typed searches are rarely repeated, so caching them would only push out
+ * useful entries. Locations are cached: detail pages list what is near their
+ * venue on every view.
+ */
+const UNCACHED_QUERY_PARAMETER = 'q';
 
 /** Serves repeated public GET requests from memory, keyed by URL. */
 @Injectable()
@@ -18,10 +22,7 @@ export class PublicCacheInterceptor implements NestInterceptor {
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const request = context.switchToHttp().getRequest<Request>();
-    if (
-      request.method !== 'GET' ||
-      PERSONAL_QUERY_PARAMETERS.some((name) => name in request.query)
-    ) {
+    if (request.method !== 'GET' || UNCACHED_QUERY_PARAMETER in request.query) {
       return next.handle();
     }
 

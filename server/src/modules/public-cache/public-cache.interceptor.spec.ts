@@ -54,16 +54,20 @@ describe('PublicCacheInterceptor', () => {
     ).resolves.toBe('after');
   });
 
-  it.each(['q=market', 'latitude=-37.78&longitude=175.28'])(
-    'does not cache personal requests (%s)',
-    async (query) => {
-      await send(`/api/v1/activities?${query}`, handler('first'));
+  it('does not cache typed searches', async () => {
+    await send('/api/v1/activities?q=market', handler('first'));
 
-      await expect(
-        send(`/api/v1/activities?${query}`, handler('second')),
-      ).resolves.toBe('second');
-    },
-  );
+    await expect(
+      send('/api/v1/activities?q=market', handler('second')),
+    ).resolves.toBe('second');
+  });
+
+  it('caches activities near a venue', async () => {
+    const url = '/api/v1/activities?latitude=-37.78&longitude=175.28';
+    await send(url, handler('first'));
+
+    await expect(send(url, handler('second'))).resolves.toBe('first');
+  });
 
   function send(url: string, next: CallHandler): Promise<unknown> {
     const query = Object.fromEntries(new URL(url, 'http://test').searchParams);

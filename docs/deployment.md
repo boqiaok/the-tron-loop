@@ -174,14 +174,15 @@ then.
 
 ## Monitoring
 
-Two UptimeRobot keyword monitors alert when the response does not contain
-`"status":"ok"`:
+Two UptimeRobot monitors alert when the site or the database is down:
 
-| URL | Interval | Checks |
-| --- | --- | --- |
-| `https://example.com/api/v1/health/live` | 5 minutes | Cloudflare, Caddy and the server |
-| `https://example.com/api/v1/health` | 60 minutes | The database (503 when unreachable) |
+| Monitor | URL | Interval | Checks |
+| --- | --- | --- | --- |
+| HTTP | `https://example.com/` | 5 minutes | Cloudflare, Caddy, the web app and the server |
+| Keyword `"status":"ok"` | `https://example.com/api/v1/health` | 60 minutes | The database (503 when unreachable) |
 
-Every database check wakes Neon's compute, which then runs until it has been
-idle for five minutes, so checking the database every five minutes would keep
-it running all day. The container healthcheck also uses `/api/v1/health/live`.
+The home page is served from the server's response cache, so its monitor does
+not reach the database. Every database check wakes Neon's compute, which then
+runs until it has been idle for five minutes, so checking the database every
+five minutes would keep it running all day. The container healthcheck uses
+`/api/v1/health/live`, which does not query the database.
