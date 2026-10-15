@@ -6,7 +6,7 @@ import type {
 } from "@/types/activity";
 import { API_BASE_URL } from "@/lib/api/config";
 import { readJson } from "@/lib/api/json";
-import { narrowRange } from "@/lib/activities/filters";
+import { narrowRange, upcomingRange } from "@/lib/activities/filters";
 
 export const PAGE_SIZE = 30;
 
@@ -79,10 +79,8 @@ export function getActivities(
 export function getActivityFilterOptions(
   range: ActivityRange,
 ): Promise<ActivityFilterOptions> {
-  const searchParams = new URLSearchParams({
-    from: range.from,
-    to: range.to,
-  });
+  const { from, to } = upcomingRange(range);
+  const searchParams = new URLSearchParams({ from, to });
 
   return fetchJson<ActivityFilterOptions>(
     `/activities/filters?${searchParams}`,
@@ -90,9 +88,10 @@ export function getActivityFilterOptions(
 }
 
 export async function getActivityCount(range: ActivityRange): Promise<number> {
+  const { from, to } = upcomingRange(range);
   const searchParams = new URLSearchParams({
-    from: range.from,
-    to: range.to,
+    from,
+    to,
     page: "1",
     limit: "1",
     sort: "asc",

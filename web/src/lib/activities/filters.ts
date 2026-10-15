@@ -105,7 +105,8 @@ export function countActiveFilters(filters: ActivityFilters): number {
 
 /**
  * Narrows a week to the "When" choice. Returns null when the choice falls
- * entirely outside the week (for example "Today" on next week).
+ * entirely outside the week (for example "Today" on next week). Days before
+ * today are dropped, so the current week only lists what is still to come.
  */
 export function narrowRange(
   range: { from: string; to: string },
@@ -123,7 +124,24 @@ export function narrowRange(
   }
   if (when === "weekend") {
     const weekStart = new TZDate(range.from, ACTIVITY_TIME_ZONE);
-    return { from: addDays(weekStart, 5).toISOString(), to: range.to };
+    return upcomingRange(
+      { from: addDays(weekStart, 5).toISOString(), to: range.to },
+      now,
+    );
   }
-  return range;
+  return upcomingRange(range, now);
+}
+
+/**
+ * Starts a range that contains today at the start of today. Past ranges are
+ * left whole so past weeks can still be browsed.
+ */
+export function upcomingRange(
+  range: { from: string; to: string },
+  now: Date = new Date(),
+): { from: string; to: string } {
+  const today = startOfDay(new TZDate(now, ACTIVITY_TIME_ZONE));
+  return today > new Date(range.from) && today < new Date(range.to)
+    ? { from: today.toISOString(), to: range.to }
+    : range;
 }

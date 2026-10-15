@@ -1,5 +1,3 @@
-import { TZDate } from "@date-fns/tz";
-import { startOfDay } from "date-fns";
 import type { Metadata } from "next";
 
 import { HomePage } from "@/components/home/home-page";
@@ -10,11 +8,7 @@ import {
   getRegularActivities,
 } from "@/lib/api/activities";
 import { getWeeklyGuide } from "@/lib/api/weekly-guides";
-import {
-  ACTIVITY_TIME_ZONE,
-  getWeekRange,
-  getWeekSlug,
-} from "@/lib/dates/week-range";
+import { getWeekRange, getWeekSlug } from "@/lib/dates/week-range";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +22,8 @@ export const metadata: Metadata = {
 export default async function Home() {
   const currentWeek = getWeekRange(0);
   const nextWeek = getWeekRange(1);
-  const weekend = currentWeekend(currentWeek);
+  // Saturday and Sunday of this week, starting today once the weekend begins.
+  const weekend = narrowRange(currentWeek, "weekend") ?? currentWeek;
   const [weekendPage, weekTotal, nextWeekTotal, regular, guide] =
     await Promise.all([
       getActivities(weekend, EMPTY_FILTERS, { limit: 50 }),
@@ -55,11 +50,3 @@ export default async function Home() {
   );
 }
 
-/** Saturday and Sunday of this week, starting today once the weekend begins. */
-function currentWeekend(week: { from: string; to: string }) {
-  const weekend = narrowRange(week, "weekend") ?? week;
-  const today = startOfDay(new TZDate(new Date(), ACTIVITY_TIME_ZONE));
-  return today > new Date(weekend.from)
-    ? { from: today.toISOString(), to: weekend.to }
-    : weekend;
-}
