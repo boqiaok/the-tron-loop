@@ -13,6 +13,7 @@ import type { BackTarget } from "@/lib/activities/detail";
 import {
   getGoodToKnow,
   getMapEmbedUrl,
+  getOtherTimes,
   getMapsUrl,
   getSourceHost,
 } from "@/lib/activities/detail";
@@ -56,7 +57,7 @@ export function ActivityDetail({
   const goodToKnow = getGoodToKnow(activity);
   const sourceHost = getSourceHost(activity.sourceUrl);
   const collected = formatDayLabel(activity.createdAt).split(" ").slice(1).join(" ");
-  const otherDates = activity.dates.filter((item) => item.id !== date.id).slice(0, 6);
+  const otherDates = getOtherTimes(activity.dates, date);
   const description = activity.summary && !activity.description.startsWith(
     activity.summary.replace(/\s*(\.\.\.|…)$/, ""),
   )

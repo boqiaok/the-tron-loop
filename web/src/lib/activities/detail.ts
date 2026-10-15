@@ -15,6 +15,21 @@ export function pickOccurrence(
   );
 }
 
+/** Up to six other sessions that have not ended yet, soonest first. */
+export function getOtherTimes(
+  dates: ActivityDate[],
+  current: ActivityDate,
+  now: Date = new Date(),
+): ActivityDate[] {
+  return dates
+    .filter(
+      (date) =>
+        date.id !== current.id && new Date(date.endsAt ?? date.startsAt) >= now,
+    )
+    .sort((a, b) => a.startsAt.localeCompare(b.startsAt))
+    .slice(0, 6);
+}
+
 export interface BackTarget {
   href: string;
   label: string;
