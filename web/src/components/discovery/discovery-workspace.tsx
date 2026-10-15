@@ -8,6 +8,7 @@ import Link from "next/link";
 import { activityHref } from "@/components/activities/activity-row";
 import { CategoryLabel } from "@/components/activities/category-label";
 import { CostPill } from "@/components/activities/cost-pill";
+import { getCategory, isActivityCategory } from "@/lib/activities/category";
 import { formatDayLabel, formatTime, getCostLabel } from "@/lib/activities/format";
 import {
   buildItinerary,
@@ -385,6 +386,24 @@ export function DiscoveryWorkspace() {
 
   const dayTitle = planTitle(intent, scope, plan);
   const busy = parsing || loading;
+  const topicMatches = result?.items.filter(matchesTopic) ?? [];
+  const otherItems = result?.items.filter((item) => !matchesTopic(item)) ?? [];
+
+  function recommendationCard(item: Recommendation, current: DiscoveryIntent) {
+    return (
+      <RecommendationCard
+        key={item.date.id}
+        item={item}
+        intent={current}
+        scope={scope}
+        added={plannedActivityDateIds.has(item.date.id)}
+        otherDay={isOtherDay(item, plan?.activities ?? [])}
+        busy={planning}
+        onAdd={() => addToPlan(item.date.id)}
+        onRemove={() => dropFromPlan(item.date.id)}
+      />
+    );
+  }
 
   return (
     <main className="pb-28 lg:pb-0">
@@ -457,26 +476,28 @@ export function DiscoveryWorkspace() {
           <section aria-labelledby="matches-heading" className="flex min-w-0 flex-col gap-2.5 md:gap-3">
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
               <h2 id="matches-heading" className="text-[17px] md:text-xl">
-                {result.items.length} {result.items.length === 1 ? "activity matches" : "activities match"}
+                {topicMatches.length} {topicMatches.length === 1 ? "activity matches" : "activities match"}
               </h2>
               <span className="hidden text-sm text-meta md:inline">
                 Ranked by fit · travel from your last stop
               </span>
             </div>
 
-            {result.items.map((item) => (
-              <RecommendationCard
-                key={item.date.id}
-                item={item}
-                intent={intent}
-                scope={scope}
-                added={plannedActivityDateIds.has(item.date.id)}
-                otherDay={isOtherDay(item, plan?.activities ?? [])}
-                busy={planning}
-                onAdd={() => addToPlan(item.date.id)}
-                onRemove={() => dropFromPlan(item.date.id)}
-              />
-            ))}
+            {topicMatches.map((item) => recommendationCard(item, intent))}
+
+            {otherItems.length ? (
+              topicMatches.length ? (
+                <h3 className="pt-2 text-[15px] font-semibold md:text-base">
+                  Other activities that fit
+                </h3>
+              ) : (
+                <p className="rounded-[14px] border border-dashed border-[#C9C6BE] bg-[#FBFAF7] px-[18px] py-3.5 text-sm leading-normal text-body">
+                  Nothing in this search matches {topicLabel(intent)}. Here is everything
+                  else that fits your date and conditions.
+                </p>
+              )
+            ) : null}
+            {otherItems.map((item) => recommendationCard(item, intent))}
 
             {result.relaxationSuggestions.length ? (
               <Relaxations
@@ -654,10 +675,10 @@ function ConditionChips({
       remove: () =>
         onChange({
           ...intent,
-          preferred: {
-            ...preferred,
-            interests: preferred.interests.filter((value) => value !== interest),
-          },
+          preferred: withInterests(
+            preferred,
+            preferred.interests.filter((value) => value !== interest),
+          ),
         }),
     })),
     ...(preferred.suburb
@@ -811,14 +832,14 @@ function IntentForm({
     event.preventDefault();
     onApply({
       ...intent,
-      preferred: {
-        ...intent.preferred,
-        interests: interests
+      preferred: withInterests(
+        intent.preferred,
+        interests
           .split(",")
           .map((value) => slug(value))
           .filter(Boolean)
           .slice(0, 10),
-      },
+      ),
     });
   }
 
@@ -1500,6 +1521,17 @@ function planTitle(
   return `Your ${new Intl.DateTimeFormat("en-NZ", { weekday: "long", timeZone: "Pacific/Auckland" }).format(new Date(`${intent.date}T12:00:00+12:00`))}`;
 }
 
+/** False only when the request named a topic the activity does not touch. */
+function matchesTopic(item: Recommendation): boolean {
+  return !item.unmetPreferences.some(({ code }) => code === "INTEREST_NOT_MATCHED");
+}
+
+function topicLabel(intent: DiscoveryIntent): string {
+  const { interests } = intent.preferred;
+  if (!interests.length) return "the topics you asked about";
+  return interests.map((interest) => `“${interest.replaceAll("-", " ")}”`).join(" or ");
+}
+
 function whenLabel(intent: DiscoveryIntent, scope: DiscoverySearchScope): string {
   if (scope === "weekend") return "This weekend";
   if (scope === "week") return "Next 7 days";
@@ -1522,6 +1554,28 @@ function environmentLabel(environment: ActivityEnvironment): string {
   if (environment === "outdoor") return "Outdoors";
   if (environment === "mixed") return "Indoor & outdoor";
   return "Any setting";
+}
+
+/**
+ * The implied topics and topic description were derived from the request
+ * along with its interests, so they no longer apply once the interests are
+ * edited by hand.
+ */
+function withInterests(
+  preferred: DiscoveryIntent["preferred"],
+  interests: string[],
+): DiscoveryIntent["preferred"] {
+  const unchanged =
+    interests.length === preferred.interests.length &&
+    interests.every((interest, index) => interest === preferred.interests[index]);
+  if (unchanged) return preferred;
+  return {
+    ...preferred,
+    interests,
+    relatedTerms: undefined,
+    categories: undefined,
+    topicDescription: undefined,
+  };
 }
 
 function slug(value: string) {
@@ -1555,6 +1609,15 @@ function reasonLabel(reason: { code: string; value?: string }): string {
         .split(",")
         .map((value) => `“${value.replaceAll("-", " ")}”`)
         .join(" and ")}`;
+    case "AI_FIT":
+      return reason.value ?? "Fits what you asked for";
+    case "RELATED_TOPIC":
+      return `Related: ${(reason.value ?? "")
+        .split(",")
+        .map((value) =>
+          isActivityCategory(value) ? getCategory(value).label : value.replaceAll("-", " "),
+        )
+        .join(", ")}`;
     default:
       return "Matches your preferences";
   }
@@ -1569,6 +1632,9 @@ function unmetLabel(
     return cost && !cost.free ? `Not free — ${cost.label.toLowerCase()}` : "Not listed as free";
   }
   if (reason.code === "PREFERRED_SUBURB_NOT_MATCHED") return `Outside ${reason.value}`;
+  if (reason.code === "ENVIRONMENT_UNCONFIRMED") {
+    return `${environmentLabel(reason.value as ActivityEnvironment)} not confirmed`;
+  }
   return "Outside your interests";
 }
 

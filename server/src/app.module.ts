@@ -42,6 +42,7 @@ import { CurationModule } from './modules/curation/curation.module';
           .trim()
           .empty('')
           .default('gemini-3.5-flash-lite'),
+        GEMINI_DAILY_REQUEST_LIMIT: Joi.number().integer().min(0).default(500),
       }),
       validationOptions: {
         allowUnknown: true,

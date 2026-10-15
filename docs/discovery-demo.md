@@ -3,13 +3,22 @@
 ## Setup
 
 1. Run the database migrations and development seed.
-2. Add `GEMINI_API_KEY` to `server/.env` to enable natural-language parsing.
-   `GEMINI_MODEL` defaults to `gemini-3.5-flash-lite`.
+2. Add `GEMINI_API_KEY` to `server/.env` to enable natural-language parsing
+   and relevance ranking. `GEMINI_MODEL` defaults to `gemini-3.5-flash-lite`.
+   `GEMINI_DAILY_REQUEST_LIMIT` (default 500, the free-tier requests per day)
+   caps Gemini requests per Pacific-time day; ranking stops at 70% of it so
+   parsing keeps working, and both fall back to keyword matching after that.
 3. Start the server and web applications, then open `/discover` or use the
    prompt on the homepage.
 
 When the API key is absent or parsing fails, the same feature remains available
 through the structured preference form.
+
+When a request describes what the person wants to do, Gemini rates how well
+each of up to 60 eligible activities fits that description and gives a short
+reason. Ratings are cached for six hours per description and activity
+version. If Gemini is unavailable, ranking falls back to keyword matching on
+titles, tags, categories and descriptions.
 
 ## Suggested presentation flow
 
@@ -55,8 +64,9 @@ records. Window activities require `visitMinutes` and retain a
 Category defaults are applied once during ingestion and can be corrected in the
 admin activity form. Parsed and default durations are labelled as estimates.
 
-Plan generation is deterministic and does not call Gemini. It places flexible
-visits inside their opening window, preserves fixed sessions, includes travel
+Plan generation ranks candidates the same way as recommendations, reusing the
+cached relevance ratings, and the scheduling itself is deterministic. It places
+flexible visits inside their opening window, preserves fixed sessions, includes travel
 and the arrival buffer, and rejects combinations that do not fit. Keep,
 Replace, and Remove rebuild through the same rules. A completed plan can be
 exported as `.ics`; flexible visits use their planned time in the calendar.
@@ -93,8 +103,10 @@ errors, empty/invalid JSON, invalid structures and incomplete time windows retur
 `POST /api/v1/discovery/parse`, its request and DiscoveryIntent stay unchanged.
 For wire compatibility, successful parses retain the legacy `source: "openai"`
 value even though Gemini now performs the parsing. `source: "manual"` still marks
-fallbacks. No OpenAI SDK or OpenAI network calls remain. Ranking, recommendation
-reasons and itinerary algorithms do not use Gemini. The scheduling fields are
+fallbacks. No OpenAI SDK or OpenAI network calls remain. Relevance ranking uses
+a second Gemini request with its own JSON Schema, the same 8-second timeout and
+minimal thinking; recommendation reasons other than the Gemini fit and the
+itinerary scheduling do not use Gemini. The scheduling fields are
 added by the `AddActivityScheduling` migration.
 
 Run `pnpm --filter server test --runInBand`,

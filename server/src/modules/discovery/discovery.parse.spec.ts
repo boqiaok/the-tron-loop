@@ -1,6 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 import { ConfigService } from '@nestjs/config';
 import { DiscoveryService } from './discovery.service';
+import { GeminiQuotaService } from './gemini-quota.service';
 
 jest.mock('@google/genai', () => ({ GoogleGenAI: jest.fn() }));
 
@@ -18,6 +19,9 @@ const valid = {
   freeOnly: null,
   preferFree: true,
   interests: ['crafts'],
+  relatedTerms: [],
+  categories: [],
+  topicDescription: null,
   suburb: null,
   targetActivityCount: null,
   travelMode: null,
@@ -35,9 +39,7 @@ describe('Gemini discovery parsing', () => {
           interactions: { create: createInteraction },
         }) as unknown as GoogleGenAI,
     );
-    service = new DiscoveryService(
-      {} as never,
-      {} as never,
+    service = discoveryService(
       new ConfigService({ GEMINI_API_KEY: 'test-key' }),
     );
     createInteraction.mockResolvedValue({ output_text: JSON.stringify(valid) });
@@ -75,10 +77,73 @@ describe('Gemini discovery parsing', () => {
     );
   });
 
+  it('grounds the request in catalog vocabulary', async () => {
+    await service.parse(input);
+
+    const [request] = createInteraction.mock.calls[0] as [{ input: string }];
+    expect(request.input).toContain(
+      'Catalog categories: market, workshop, family, outdoors, arts_music, community',
+    );
+    expect(request.input).toContain('Catalog tags: crafts, live-music');
+  });
+
+  it('normalizes interests and keeps implied topics separate', async () => {
+    createInteraction.mockResolvedValue({
+      output_text: JSON.stringify({
+        ...valid,
+        interests: ['Live Music', 'live music'],
+        relatedTerms: ['live-music', 'Jazz', 'concert'],
+        categories: ['arts_music', 'arts_music'],
+      }),
+    });
+
+    const result = await service.parse(input);
+
+    expect(result.intent?.preferred).toEqual({
+      free: true,
+      interests: ['live-music'],
+      relatedTerms: ['jazz', 'concert'],
+      categories: ['arts_music'],
+    });
+  });
+
+  it('asks for minimal thinking and keeps a description of the topic', async () => {
+    createInteraction.mockResolvedValue({
+      output_text: JSON.stringify({
+        ...valid,
+        topicDescription: '  A quiet evening, nothing sporty  ',
+      }),
+    });
+
+    const result = await service.parse(input);
+
+    expect(result.intent?.preferred.topicDescription).toBe(
+      'A quiet evening, nothing sporty',
+    );
+    expect(createInteraction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        generation_config: { thinking_level: 'minimal' },
+      }),
+      expect.anything(),
+    );
+  });
+
+  it('falls back without calling Gemini once the daily budget is used', async () => {
+    service = discoveryService(
+      new ConfigService({
+        GEMINI_API_KEY: 'test-key',
+        GEMINI_DAILY_REQUEST_LIMIT: 1,
+      }),
+    );
+    await service.parse(input);
+    const second = await service.parse(input);
+
+    expect(second.source).toBe('manual');
+    expect(createInteraction).toHaveBeenCalledTimes(1);
+  });
+
   it('honors the configured model', async () => {
-    service = new DiscoveryService(
-      {} as never,
-      {} as never,
+    service = discoveryService(
       new ConfigService({
         GEMINI_API_KEY: 'test-key',
         GEMINI_MODEL: 'custom-model',
@@ -154,11 +219,7 @@ describe('Gemini discovery parsing', () => {
   it.each([undefined, '', '   '])(
     'falls back without calling Gemini for key %p',
     async (key) => {
-      service = new DiscoveryService(
-        {} as never,
-        {} as never,
-        new ConfigService({ GEMINI_API_KEY: key }),
-      );
+      service = discoveryService(new ConfigService({ GEMINI_API_KEY: key }));
       expect(await service.parse(input)).toMatchObject({
         intent: {
           date: '2026-09-19',
@@ -196,6 +257,9 @@ describe('Gemini discovery parsing', () => {
     { ...valid, familyFriendly: 'true' },
     { ...valid, interests: [1] },
     { ...valid, interests: Array<string>(11).fill('crafts') },
+    { ...valid, categories: ['nightlife'] },
+    { ...valid, relatedTerms: Array<string>(11).fill('music') },
+    { ...valid, topicDescription: 3 },
     { ...valid, unresolved: null },
     { ...valid, travelMode: 'flying' },
     { ...valid, targetActivityCount: 4 },
@@ -227,11 +291,7 @@ describe('Gemini discovery parsing', () => {
   );
 
   it('keeps a generic topic search when Gemini is unavailable', async () => {
-    service = new DiscoveryService(
-      {} as never,
-      {} as never,
-      new ConfigService({ GEMINI_API_KEY: '' }),
-    );
+    service = discoveryService(new ConfigService({ GEMINI_API_KEY: '' }));
     const result = await service.parse({
       ...input,
       text: 'dance',
@@ -264,3 +324,30 @@ describe('Gemini discovery parsing', () => {
     });
   });
 });
+
+function tagsRepository() {
+  const query = {
+    select: jest.fn().mockReturnThis(),
+    innerJoin: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    groupBy: jest.fn().mockReturnThis(),
+    orderBy: jest.fn().mockReturnThis(),
+    addOrderBy: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockReturnThis(),
+    getRawMany: jest
+      .fn()
+      .mockResolvedValue([{ slug: 'crafts' }, { slug: 'live-music' }]),
+  };
+  return { createQueryBuilder: jest.fn(() => query) } as never;
+}
+
+function discoveryService(config: ConfigService): DiscoveryService {
+  return new DiscoveryService(
+    {} as never,
+    {} as never,
+    tagsRepository(),
+    config,
+    new GeminiQuotaService(config),
+    {} as never,
+  );
+}

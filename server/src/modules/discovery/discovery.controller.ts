@@ -31,6 +31,7 @@ export class DiscoveryController {
 
   @Post('recommendations')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @ApiOperation({ summary: 'Rank activity sessions for a confirmed intent' })
   @ApiOkResponse({ description: 'Ranked sessions and verified relaxations' })
   recommendations(@Body() dto: RecommendationRequestDto) {
@@ -39,6 +40,7 @@ export class DiscoveryController {
 
   @Post('itineraries')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @ApiOperation({ summary: 'Build a compatible two- or three-activity plan' })
   @ApiOkResponse({ description: 'Complete, partial, or conflicting plan' })
   itinerary(@Body() dto: ItineraryRequestDto) {

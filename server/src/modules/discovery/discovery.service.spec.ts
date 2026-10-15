@@ -147,8 +147,10 @@ describe('discovery planning rules', () => {
 
     const result = await service.recommendations(intent);
 
-    expect(result.items).toHaveLength(1);
-    expect(result.items[0].activity.slug).toBe('craft');
+    expect(result.items.map(({ activity }) => activity.slug)).toEqual([
+      'craft',
+      'mixed',
+    ]);
     expect(result.items[0].score).toBe(100);
     expect(result.items[0].reasons.map(({ code }) => code)).toEqual(
       expect.arrayContaining(['INTEREST_MATCH', 'FREE', 'PREFERRED_SUBURB']),
@@ -216,17 +218,13 @@ describe('discovery planning rules', () => {
       baseIntent({ preferred: { interests: ['food'] } }),
     );
 
-    expect(arts.items.map(({ activity }) => activity.slug)).toEqual([
-      'art-studio',
-    ]);
-    expect(food.items.map(({ activity }) => activity.slug)).toEqual([
-      'food-class',
-    ]);
+    expect(arts.items[0].activity.slug).toBe('art-studio');
+    expect(food.items[0].activity.slug).toBe('food-class');
     expect(arts.items[0].matchedInterests).toEqual(['arts']);
     expect(food.items[0].matchedInterests).toEqual(['food']);
   });
 
-  it('offers an explicit broad search when no topic matches', async () => {
+  it('keeps activities outside the requested topic, ranked after matches and flagged', async () => {
     const service = serviceWithDates([
       activityDate(
         'community-event',
@@ -234,22 +232,277 @@ describe('discovery planning rules', () => {
         '2026-09-19T01:00:00.000Z',
         { tags: ['community'] },
       ),
+      activityDate(
+        'star-night',
+        '2026-09-19T02:00:00.000Z',
+        '2026-09-19T03:00:00.000Z',
+        { tags: ['astronomy'] },
+      ),
     ]);
 
     const result = await service.recommendations(
       baseIntent({ preferred: { interests: ['astronomy'] } }),
     );
 
-    expect(result.items).toHaveLength(0);
+    expect(result.items.map(({ activity }) => activity.slug)).toEqual([
+      'star-night',
+      'community-event',
+    ]);
+    expect(result.items[1].unmetPreferences).toEqual([
+      { code: 'INTEREST_NOT_MATCHED' },
+    ]);
+    expect(result.relaxationSuggestions).toEqual([]);
+  });
+
+  it('ranks implied topics and categories below an explicitly requested interest', async () => {
+    const service = serviceWithDates([
+      activityDate(
+        'gallery',
+        '2026-09-19T00:00:00.000Z',
+        '2026-09-19T01:00:00.000Z',
+        { category: ActivityCategory.ArtsMusic },
+      ),
+      activityDate(
+        'jazz-trio',
+        '2026-09-19T01:00:00.000Z',
+        '2026-09-19T02:00:00.000Z',
+        { tags: ['jazz'] },
+      ),
+      activityDate(
+        'live-music-night',
+        '2026-09-19T02:00:00.000Z',
+        '2026-09-19T03:00:00.000Z',
+        { tags: ['live-music'] },
+      ),
+      activityDate(
+        'quiz',
+        '2026-09-19T03:00:00.000Z',
+        '2026-09-19T04:00:00.000Z',
+      ),
+    ]);
+
+    const result = await service.recommendations(
+      baseIntent({
+        preferred: {
+          interests: ['live-music'],
+          relatedTerms: ['jazz'],
+          categories: [ActivityCategory.ArtsMusic],
+        },
+      }),
+    );
+
+    expect(result.items.map(({ activity }) => activity.slug)).toEqual([
+      'live-music-night',
+      'jazz-trio',
+      'gallery',
+      'quiz',
+    ]);
+    expect(result.items.map(({ score }) => score)).toEqual([100, 50, 20, 0]);
+    expect(result.items[2].reasons).toEqual([
+      { code: 'RELATED_TOPIC', value: 'arts_music' },
+    ]);
+    expect(result.items[3].unmetPreferences).toEqual([
+      { code: 'INTEREST_NOT_MATCHED' },
+    ]);
+  });
+
+  it('keeps mixed and unconfirmed environments but drops the opposite one', async () => {
+    const service = serviceWithDates([
+      activityDate(
+        'museum',
+        '2026-09-19T00:00:00.000Z',
+        '2026-09-19T01:00:00.000Z',
+      ),
+      activityDate(
+        'market',
+        '2026-09-19T01:00:00.000Z',
+        '2026-09-19T02:00:00.000Z',
+        { environment: ActivityEnvironment.Unknown },
+      ),
+      activityDate(
+        'garden-tour',
+        '2026-09-19T02:00:00.000Z',
+        '2026-09-19T03:00:00.000Z',
+        { environment: ActivityEnvironment.Outdoor },
+      ),
+    ]);
+
+    const result = await service.recommendations(
+      baseIntent({ required: { environment: ActivityEnvironment.Indoor } }),
+    );
+
+    expect(result.items.map(({ activity }) => activity.slug)).toEqual([
+      'museum',
+      'market',
+    ]);
+    expect(result.items[1].reasons).toEqual([]);
+    expect(result.items[1].unmetPreferences).toEqual([
+      { code: 'ENVIRONMENT_UNCONFIRMED', value: ActivityEnvironment.Indoor },
+    ]);
+  });
+
+  it('plans activities on the requested topic ahead of better-scoring others', async () => {
+    const service = serviceWithDates([
+      activityDate(
+        'free-quiz',
+        '2026-09-19T00:00:00.000Z',
+        '2026-09-19T01:00:00.000Z',
+      ),
+      activityDate(
+        'stargazing',
+        '2026-09-19T01:30:00.000Z',
+        '2026-09-19T02:30:00.000Z',
+        {
+          description: 'An evening of astronomy',
+          costType: ActivityCostType.Paid,
+        },
+      ),
+      activityDate(
+        'planetarium',
+        '2026-09-19T03:00:00.000Z',
+        '2026-09-19T04:00:00.000Z',
+        { description: 'Astronomy shows', costType: ActivityCostType.Paid },
+      ),
+    ]);
+
+    const plan = await service.itinerary({
+      intent: baseIntent({
+        preferred: { free: true, interests: ['astronomy'] },
+      }),
+      scope: DiscoverySearchScope.Day,
+      targetCount: 2,
+      lockedActivityDateIds: [],
+      excludedActivityDateIds: [],
+    });
+
+    expect(
+      (plan.activities as RecommendationCandidate[]).map(
+        (item) => item.activity.slug,
+      ),
+    ).toEqual(['stargazing', 'planetarium']);
+  });
+
+  it('ranks by the Gemini fit for a described topic and shows its reason', async () => {
+    const gin = activityDate(
+      'gin-tasting',
+      '2026-09-19T00:00:00.000Z',
+      '2026-09-19T01:00:00.000Z',
+      { tags: ['workshop', 'life-skills'] },
+    );
+    const pottery = activityDate(
+      'pottery',
+      '2026-09-19T02:00:00.000Z',
+      '2026-09-19T03:00:00.000Z',
+    );
+    const pottery2 = activityDate(
+      'pottery',
+      '2026-09-19T03:00:00.000Z',
+      '2026-09-19T04:00:00.000Z',
+    );
+    pottery2.activity = pottery.activity;
+    pottery2.activityId = pottery.activityId;
+    const relevance = {
+      score: jest
+        .fn()
+        .mockResolvedValue(
+          new Map([
+            [
+              pottery.activityId,
+              { relevance: 3, reason: 'Hands-on class for beginners' },
+            ],
+          ]),
+        ),
+    };
+    const service = serviceWithDates([gin, pottery, pottery2], relevance);
+
+    const result = await service.recommendations(
+      baseIntent({
+        preferred: {
+          interests: [],
+          relatedTerms: ['workshop'],
+          topicDescription: 'Learn a new hands-on skill',
+        },
+      }),
+    );
+
+    expect(relevance.score).toHaveBeenCalledWith('Learn a new hands-on skill', [
+      gin.activity,
+      pottery.activity,
+    ]);
+    expect(result.items.map(({ activity }) => activity.slug)).toEqual([
+      'pottery',
+      'pottery',
+      'gin-tasting',
+    ]);
+    expect(result.items[0].score).toBe(100);
+    expect(result.items[0].reasons).toEqual([
+      { code: 'AI_FIT', value: 'Hands-on class for beginners' },
+    ]);
+    expect(result.items[2].unmetPreferences).toEqual([
+      { code: 'INTEREST_NOT_MATCHED' },
+    ]);
+  });
+
+  it('keeps keyword ranking when Gemini cannot score the topic', async () => {
+    const service = serviceWithDates([
+      activityDate(
+        'quiz',
+        '2026-09-19T00:00:00.000Z',
+        '2026-09-19T01:00:00.000Z',
+      ),
+      activityDate(
+        'pottery',
+        '2026-09-19T02:00:00.000Z',
+        '2026-09-19T03:00:00.000Z',
+        { tags: ['pottery'] },
+      ),
+    ]);
+
+    const result = await service.recommendations(
+      baseIntent({
+        preferred: {
+          interests: ['pottery'],
+          topicDescription: 'Try pottery',
+        },
+      }),
+    );
+
+    expect(result.items.map(({ activity }) => activity.slug)).toEqual([
+      'pottery',
+      'quiz',
+    ]);
+    expect(result.items[0].reasons).toEqual([
+      { code: 'INTEREST_MATCH', value: 'pottery' },
+    ]);
+  });
+
+  it('counts relaxed alternatives without asking Gemini', async () => {
+    const relevance = { score: jest.fn().mockResolvedValue(null) };
+    const service = serviceWithDates(
+      [
+        activityDate(
+          'paid-class',
+          '2026-09-19T00:00:00.000Z',
+          '2026-09-19T01:00:00.000Z',
+          { costType: ActivityCostType.Paid },
+        ),
+      ],
+      relevance,
+    );
+
+    const result = await service.recommendations(
+      baseIntent({
+        required: { freeOnly: true },
+        preferred: { interests: [], topicDescription: 'A class' },
+      }),
+    );
+
     expect(result.relaxationSuggestions).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          code: 'ANY_TOPIC',
-          label: 'Show all topics',
-          count: 1,
-        }),
+        expect.objectContaining({ code: 'ALLOW_PAID', count: 1 }),
       ]),
     );
+    expect(relevance.score).not.toHaveBeenCalled();
   });
 
   it('builds a compatible plan instead of choosing overlapping top results', async () => {
@@ -477,7 +730,12 @@ function candidate(
   };
 }
 
-function serviceWithDates(dates: unknown[]): DiscoveryService {
+function serviceWithDates(
+  dates: unknown[],
+  relevance: { score: jest.Mock } = {
+    score: jest.fn().mockResolvedValue(null),
+  },
+): DiscoveryService {
   const query = {
     innerJoin: jest.fn().mockReturnThis(),
     where: jest.fn().mockReturnThis(),
@@ -491,7 +749,10 @@ function serviceWithDates(dates: unknown[]): DiscoveryService {
   return new DiscoveryService(
     { createQueryBuilder: jest.fn(() => query) } as never,
     { find: jest.fn().mockResolvedValue(activities) } as never,
+    {} as never,
     { get: jest.fn() } as never,
+    {} as never,
+    relevance as never,
   );
 }
 
@@ -501,6 +762,7 @@ function activityDate(
   endsAt: string,
   options: {
     tags?: string[];
+    description?: string;
     category?: ActivityCategory;
     suburb?: string;
     latitude?: number;
@@ -530,7 +792,7 @@ function activityDate(
       title: slugValue,
       slug: slugValue,
       summary: null,
-      description: 'Test activity',
+      description: options.description ?? 'Test activity',
       imageUrl: null,
       category: options.category ?? ActivityCategory.Community,
       environment: options.environment ?? ActivityEnvironment.Indoor,

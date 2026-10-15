@@ -15,6 +15,7 @@ import {
   MaxLength,
   ValidateNested,
 } from 'class-validator';
+import { ActivityCategory } from '../../activities/enums/activity-category.enum';
 import { ActivityEnvironment } from '../../activities/enums/activity-environment.enum';
 
 export enum TravelMode {
@@ -68,6 +69,32 @@ export class PreferredPreferencesDto {
   @IsString({ each: true })
   @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, { each: true })
   interests: string[] = [];
+
+  /** Topics implied by the request, ranked at half the weight of interests. */
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ArrayUnique()
+  @IsString({ each: true })
+  @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, { each: true })
+  relatedTerms?: string[];
+
+  /** Categories that fit the request, ranked at half the weight of interests. */
+  @ApiPropertyOptional({ enum: ActivityCategory, isArray: true })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(6)
+  @ArrayUnique()
+  @IsEnum(ActivityCategory, { each: true })
+  categories?: ActivityCategory[];
+
+  /** What the person wants to do, in a sentence; Gemini ranks by fit to it. */
+  @ApiPropertyOptional({ maxLength: 200 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  topicDescription?: string;
 
   @ApiPropertyOptional({ maxLength: 120 })
   @IsOptional()

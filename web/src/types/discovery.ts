@@ -1,5 +1,6 @@
 import type {
   Activity,
+  ActivityCategory,
   ActivityDate,
   ActivityEnvironment,
 } from "@/types/activity";
@@ -20,6 +21,11 @@ export interface DiscoveryIntent {
   preferred: {
     free?: boolean;
     interests: string[];
+    /** Topics the request implied; they rank below the interests. */
+    relatedTerms?: string[];
+    categories?: ActivityCategory[];
+    /** What the person wants to do; the server ranks by fit to it. */
+    topicDescription?: string;
     suburb?: string;
   };
   targetActivityCount: 2 | 3;
