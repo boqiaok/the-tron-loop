@@ -6,16 +6,20 @@ import { FormEvent, useState } from "react";
 import { startPlan } from "@/lib/discovery/plan-request";
 
 const EXAMPLES = [
-  { label: "Free things tonight", shortLabel: "Free tonight", text: "Free things to do tonight" },
   {
-    label: "Rainy Sunday with a toddler",
-    shortLabel: "Rainy Sunday",
-    text: "Something indoors on Sunday with a toddler",
+    label: "Free things this weekend",
+    shortLabel: "Free this weekend",
+    text: "Free things to do this weekend",
   },
   {
-    label: "Live music near the river",
-    shortLabel: "Live music",
-    text: "Live music near the river this weekend",
+    label: "Something for the kids",
+    shortLabel: "For the kids",
+    text: "Something for the kids this week",
+  },
+  {
+    label: "Learn something new",
+    shortLabel: "Learn something",
+    text: "Learn something new this week",
   },
 ];
 
