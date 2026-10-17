@@ -1,5 +1,9 @@
-import { CallHandler, ExecutionContext } from '@nestjs/common';
-import { firstValueFrom, Observable, of } from 'rxjs';
+import {
+  CallHandler,
+  ExecutionContext,
+  NotFoundException,
+} from '@nestjs/common';
+import { firstValueFrom, Observable, of, throwError } from 'rxjs';
 import { PublicCacheInterceptor } from './public-cache.interceptor';
 import { PublicCacheService } from './public-cache.service';
 
@@ -67,6 +71,38 @@ describe('PublicCacheInterceptor', () => {
     await send(url, handler('first'));
 
     await expect(send(url, handler('second'))).resolves.toBe('first');
+  });
+
+  it('answers a repeated missing page from memory', async () => {
+    const url = '/api/v1/weekly-guides/2026-10-12';
+    const handle = jest.fn(() => throwError(() => new NotFoundException()));
+
+    await expect(send(url, { handle })).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    await expect(send(url, { handle })).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(handle).toHaveBeenCalledTimes(1);
+  });
+
+  it('finds a page once the listings change', async () => {
+    const url = '/api/v1/weekly-guides/2026-10-12';
+    await send(url, {
+      handle: () => throwError(() => new NotFoundException()),
+    }).catch(() => undefined);
+    cache.clear();
+
+    await expect(send(url, handler('published'))).resolves.toBe('published');
+  });
+
+  it('does not keep other failures', async () => {
+    const url = '/api/v1/activities?page=1';
+    await send(url, {
+      handle: () => throwError(() => new Error('database unavailable')),
+    }).catch(() => undefined);
+
+    await expect(send(url, handler('recovered'))).resolves.toBe('recovered');
   });
 
   function send(url: string, next: CallHandler): Promise<unknown> {
