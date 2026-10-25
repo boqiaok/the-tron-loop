@@ -8,6 +8,10 @@ import { App } from 'supertest/types';
 import { DiscoveryController } from '../src/modules/discovery/discovery.controller';
 import { DiscoveryService } from '../src/modules/discovery/discovery.service';
 import { ActivityDate } from '../src/modules/activities/entities/activity-date.entity';
+import { Activity } from '../src/modules/activities/entities/activity.entity';
+import { Tag } from '../src/modules/activities/entities/tag.entity';
+import { GeminiQuotaService } from '../src/modules/discovery/gemini-quota.service';
+import { TopicRelevanceService } from '../src/modules/discovery/topic-relevance.service';
 import { setupApp } from '../src/app.setup';
 
 jest.mock('@google/genai', () => ({ GoogleGenAI: jest.fn() }));
@@ -33,6 +37,9 @@ describe('Discovery parse HTTP contract (no database)', () => {
     freeOnly: null,
     preferFree: null,
     interests: [],
+    relatedTerms: [],
+    categories: [],
+    topicDescription: null,
     suburb: null,
     targetActivityCount: null,
     travelMode: null,
@@ -45,6 +52,13 @@ describe('Discovery parse HTTP contract (no database)', () => {
         DiscoveryService,
         { provide: ConfigService, useValue: config },
         { provide: getRepositoryToken(ActivityDate), useValue: {} },
+        { provide: getRepositoryToken(Activity), useValue: {} },
+        { provide: getRepositoryToken(Tag), useValue: tagsRepository() },
+        {
+          provide: GeminiQuotaService,
+          useValue: new GeminiQuotaService(config),
+        },
+        { provide: TopicRelevanceService, useValue: { score: jest.fn() } },
       ],
     }).compile();
     app = module.createNestApplication();
@@ -207,3 +221,20 @@ describe('Discovery parse HTTP contract (no database)', () => {
     expect(createInteraction).not.toHaveBeenCalled();
   });
 });
+
+/** Minimal Tag repository stub: returns a short catalog of tag slugs. */
+function tagsRepository() {
+  const query = {
+    select: jest.fn().mockReturnThis(),
+    innerJoin: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    groupBy: jest.fn().mockReturnThis(),
+    orderBy: jest.fn().mockReturnThis(),
+    addOrderBy: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockReturnThis(),
+    getRawMany: jest
+      .fn()
+      .mockResolvedValue([{ slug: 'crafts' }, { slug: 'live-music' }]),
+  };
+  return { createQueryBuilder: jest.fn(() => query) } as never;
+}
