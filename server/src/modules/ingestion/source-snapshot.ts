@@ -18,6 +18,11 @@ export interface SourceSnapshot {
   dates: string[];
   /** Sources only list dates up to here, so later dates are unknown. */
   windowEnd: string;
+  /**
+   * Set when the source stopped listing the activity: the upcoming start
+   * times inside its import window at that point.
+   */
+  unlistedDates?: string[];
 }
 
 export enum SourceChangeKind {
@@ -26,13 +31,14 @@ export enum SourceChangeKind {
   Venue = 'venue',
   Title = 'title',
   Cost = 'cost',
+  Unlisted = 'unlisted',
 }
 
 export interface SourceChange {
   kind: SourceChangeKind;
   before: string | null;
   after: string | null;
-  /** For removed dates, the start times that are no longer listed. */
+  /** For removed dates or an unlisted activity, the start times affected. */
   dates: string[];
 }
 
@@ -65,6 +71,14 @@ export function diffSnapshots(
   if (current.cancelled && !accepted.cancelled) {
     return [change(SourceChangeKind.Cancelled, null, null)];
   }
+  if (current.unlistedDates && !accepted.unlistedDates) {
+    const upcoming = current.unlistedDates.filter(
+      (date) => toTime(date) >= now.getTime(),
+    );
+    return upcoming.length
+      ? [{ ...change(SourceChangeKind.Unlisted, null, null), dates: upcoming }]
+      : [];
+  }
 
   const changes: SourceChange[] = [];
   const removed = findRemovedDates(accepted, current, now);
@@ -92,6 +106,21 @@ export function diffSnapshots(
     changes.push(change(SourceChangeKind.Cost, acceptedCost, currentCost));
   }
   return changes;
+}
+
+/** The accepted listing, noting the dates the source no longer lists. */
+export function toUnlistedSnapshot(
+  accepted: SourceSnapshot,
+  unlistedDates: string[],
+): SourceSnapshot {
+  return { ...accepted, unlistedDates };
+}
+
+/** The accepted listing once the source lists the activity again. */
+export function withoutUnlisted(snapshot: SourceSnapshot): SourceSnapshot {
+  const listed = { ...snapshot };
+  delete listed.unlistedDates;
+  return listed;
 }
 
 /** Upcoming start times the source lists that the accepted listing lacks. */

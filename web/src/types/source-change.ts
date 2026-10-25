@@ -5,13 +5,14 @@ export type SourceChangeKind =
   | "dates_removed"
   | "venue"
   | "title"
-  | "cost";
+  | "cost"
+  | "unlisted";
 
 export interface SourceChange {
   kind: SourceChangeKind;
   before: string | null;
   after: string | null;
-  /** For removed dates, the start times the source no longer lists. */
+  /** For removed dates or an unlisted activity, the start times affected. */
   dates: string[];
 }
 

@@ -91,7 +91,7 @@ function ChangedRow({ item }: { item: ChangedActivity }) {
             <li
               key={change.kind}
               className={cn(
-                change.kind === "cancelled"
+                change.kind === "cancelled" || change.kind === "unlisted"
                   ? "font-medium text-destructive"
                   : "text-foreground",
               )}
@@ -153,15 +153,19 @@ function describeChange(change: SourceChange): string {
       return `Title: ${change.before} → ${change.after}`;
     case "cost":
       return `Cost: ${change.before} → ${change.after}`;
+    case "unlisted":
+      return `No longer listed by the source: ${change.dates
+        .map((date) => `${formatDayLabel(date)} ${formatTime(date)}`)
+        .join(", ")}.`;
   }
 }
 
-/** Cancelled at source, or every upcoming date is gone. */
+/** Cancelled at source, or every upcoming date is gone or unlisted. */
 function suggestsCancelling({ activity, changes }: ChangedActivity): boolean {
   if (changes.some(({ kind }) => kind === "cancelled")) return true;
   const removed = new Set(
     changes
-      .filter(({ kind }) => kind === "dates_removed")
+      .filter(({ kind }) => kind === "dates_removed" || kind === "unlisted")
       .flatMap(({ dates }) => dates.map((date) => Date.parse(date))),
   );
   const upcoming = activity.dates

@@ -814,6 +814,69 @@ describe('Application (e2e)', () => {
     await dataSource.getRepository(Venue).delete({ name: `${token} Arena` });
   });
 
+  it('flags a published activity its source stops listing', async () => {
+    const token = `Unlisted${Date.now()}`;
+    const startsAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .replace(/\.\d{3}Z$/, 'Z');
+    const listing = (externalId: string) => ({
+      externalId,
+      title: `${token} ${externalId}`,
+      description: 'A listing that may disappear',
+      startsAt,
+      venue: { name: `${token} Hall`, address: '3 Grey Street' },
+      costType: 'free',
+    });
+    const path = `/${token}.json`;
+    pathFeeds.set(path, [listing('kept'), listing('dropped')]);
+    const sourceResponse = await adminAgent
+      .post('/api/v1/admin/sources')
+      .send({
+        name: `E2E ${path}`,
+        sourceType: SourceType.JsonFeed,
+        feedUrl: feedUrl.replace('/events.json', path),
+      })
+      .expect(201);
+    const source = sourceResponse.body as { id: string };
+    sourceIds.push(source.id);
+    const runImport = () =>
+      adminAgent.post(`/api/v1/admin/sources/${source.id}/import`).expect(201);
+    const pendingFor = async (id: string) =>
+      (
+        (await adminAgent.get('/api/v1/admin/source-changes').expect(200))
+          .body as Array<{
+          activity: { id: string };
+          changes: Array<{ kind: string; dates: string[] }>;
+        }>
+      ).find(({ activity }) => activity.id === id);
+
+    await runImport();
+    const dropped = await dataSource
+      .getRepository(Activity)
+      .findOneByOrFail({ sourceId: source.id, externalId: 'dropped' });
+    const kept = await dataSource
+      .getRepository(Activity)
+      .findOneByOrFail({ sourceId: source.id, externalId: 'kept' });
+    activityIds.push(dropped.id, kept.id);
+    await adminAgent
+      .post(`/api/v1/admin/activities/${dropped.id}/publish`)
+      .expect(200);
+
+    pathFeeds.set(path, [listing('kept')]);
+    await runImport();
+    expect((await pendingFor(dropped.id))?.changes).toEqual([
+      expect.objectContaining({
+        kind: 'unlisted',
+        dates: [new Date(startsAt).toISOString()],
+      }),
+    ]);
+
+    pathFeeds.set(path, [listing('kept'), listing('dropped')]);
+    await runImport();
+    expect(await pendingFor(dropped.id)).toBeUndefined();
+    await dataSource.getRepository(Venue).delete({ name: `${token} Hall` });
+  });
+
   it('GET /api/v1/health reports a healthy database', () => {
     return request(app.getHttpServer())
       .get('/api/v1/health')

@@ -4,7 +4,9 @@ import {
   findAddedDates,
   SourceChangeKind,
   SourceSnapshot,
+  toUnlistedSnapshot,
   withAddedDates,
+  withoutUnlisted,
 } from './source-snapshot';
 
 const now = new Date('2026-10-01T00:00:00.000Z');
@@ -137,6 +139,40 @@ describe('diffSnapshots', () => {
         after: 'Free',
       }),
     ]);
+  });
+});
+
+describe('unlisted snapshots', () => {
+  it('reports the upcoming dates of an activity the source stopped listing', () => {
+    const unlisted = toUnlistedSnapshot(snapshot(), [day(4), day(11)]);
+    expect(
+      diffSnapshots(snapshot(), unlisted, new Date(Date.UTC(2026, 9, 8))),
+    ).toEqual([
+      {
+        kind: SourceChangeKind.Unlisted,
+        before: null,
+        after: null,
+        dates: [day(11)],
+      },
+    ]);
+  });
+
+  it('reports nothing once every unlisted date has passed', () => {
+    const unlisted = toUnlistedSnapshot(snapshot(), [day(4)]);
+    expect(
+      diffSnapshots(snapshot(), unlisted, new Date(Date.UTC(2026, 9, 8))),
+    ).toEqual([]);
+  });
+
+  it('raises nothing again after an editor accepts the unlisting', () => {
+    const unlisted = toUnlistedSnapshot(snapshot(), [day(11)]);
+    expect(diffSnapshots(unlisted, unlisted, now)).toEqual([]);
+  });
+
+  it('drops the unlisting when the source lists the activity again', () => {
+    expect(withoutUnlisted(toUnlistedSnapshot(snapshot(), [day(11)]))).toEqual(
+      snapshot(),
+    );
   });
 });
 

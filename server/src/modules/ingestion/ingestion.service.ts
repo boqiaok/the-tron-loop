@@ -34,7 +34,7 @@ import { HamiltonLibrariesAdapter } from './hamilton-libraries.adapter';
 import { HliveAdapter } from './hlive.adapter';
 import { JsonFeedAdapter } from './json-feed.adapter';
 import { WaikatoMuseumAdapter } from './waikato-museum.adapter';
-import { getImportWindow } from './import-window';
+import { getImportWindow, ImportWindow } from './import-window';
 import { isKnownLabel } from './infer-category';
 import { ImportedActivity, SourceAdapter } from './source-adapter';
 import {
@@ -42,7 +42,9 @@ import {
   findAddedDates,
   SourceSnapshot,
   toSourceSnapshot,
+  toUnlistedSnapshot,
   withAddedDates,
+  withoutUnlisted,
 } from './source-snapshot';
 import { SourceType } from './source-type.enum';
 
@@ -173,7 +175,9 @@ export class IngestionService {
       const feed = await adapter.fetch(source);
       const now = new Date();
       const window = getImportWindow(now.getTime());
+      const seenExternalIds = new Set<string>();
       for (const raw of feed) {
+        seenExternalIds.add(readExternalId(raw));
         try {
           const item = adapter.parse(raw);
           const snapshot = toSourceSnapshot(item, window);
@@ -200,6 +204,11 @@ export class IngestionService {
             }),
           );
         }
+      }
+      // An empty feed more likely means the site broke than that every
+      // listing ended, so nothing is flagged as unlisted.
+      if (feed.length) {
+        await this.flagUnlistedActivities(source, seenExternalIds, window, now);
       }
       run.status = ImportRunStatus.Succeeded;
     } catch (error) {
@@ -515,6 +524,50 @@ export class IngestionService {
    * last accepted rather than the activity, which the editor may have edited.
    */
   /**
+   * Published activities from this source that it no longer lists while
+   * they still have upcoming dates inside the import window. The change is
+   * left for an editor; once accepted, it is not raised again.
+   */
+  private async flagUnlistedActivities(
+    source: Source,
+    seenExternalIds: Set<string>,
+    window: ImportWindow,
+    now: Date,
+  ): Promise<void> {
+    const activities = await this.activities.find({
+      where: { sourceId: source.id, status: ActivityStatus.Published },
+      relations: { venue: true, dates: true },
+    });
+    const windowEnd = new Date(window.endsAt).getTime();
+    for (const activity of activities) {
+      if (
+        !activity.externalId ||
+        seenExternalIds.has(activity.externalId) ||
+        activity.sourceSnapshot?.unlistedDates
+      ) {
+        continue;
+      }
+      const upcoming = activity.dates
+        .map(({ startsAt }) => startsAt)
+        .filter(
+          (startsAt) =>
+            startsAt.getTime() >= now.getTime() &&
+            startsAt.getTime() <= windowEnd,
+        )
+        .map((startsAt) => startsAt.toISOString())
+        .sort();
+      if (!upcoming.length) continue;
+
+      const accepted =
+        activity.sourceSnapshot ?? toActivitySnapshot(activity, window);
+      await this.activities.update(activity.id, {
+        sourceSnapshot: accepted,
+        pendingSourceSnapshot: toUnlistedSnapshot(accepted, upcoming),
+      });
+    }
+  }
+
+  /**
    * Gives a draft without a known cost the price a matching listing from
    * another source states. Published activities change only through review.
    */
@@ -554,7 +607,8 @@ export class IngestionService {
       return { outcome: ImportItemOutcome.Unchanged, message: null };
     }
 
-    let accepted = activity.sourceSnapshot;
+    // The source lists the activity again, so it is no longer unlisted.
+    let accepted = withoutUnlisted(activity.sourceSnapshot);
     const added = findAddedDates(accepted, snapshot, now);
     if (added.length && !snapshot.cancelled) {
       const addedTimes = new Set(added);
@@ -652,6 +706,25 @@ export class IngestionService {
       ) ?? null
     );
   }
+}
+
+/** A baseline for an activity published before snapshots were kept. */
+function toActivitySnapshot(
+  activity: Activity,
+  window: ImportWindow,
+): SourceSnapshot {
+  return {
+    title: activity.title,
+    venue: activity.venue
+      ? { name: activity.venue.name, address: activity.venue.address }
+      : null,
+    costType: activity.costType,
+    costAmountFrom:
+      activity.costAmountFrom === null ? null : Number(activity.costAmountFrom),
+    cancelled: false,
+    dates: activity.dates.map(({ startsAt }) => startsAt.toISOString()),
+    windowEnd: new Date(window.endsAt).toISOString(),
+  };
 }
 
 /** Local midnight to the next midnight for the day a start falls on. */
