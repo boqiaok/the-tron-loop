@@ -14,7 +14,9 @@ import { IngestionScheduler } from './ingestion.scheduler';
 import { IngestionService } from './ingestion.service';
 import { SourceChangesService } from './source-changes.service';
 import { EventfindaAdapter } from './eventfinda.adapter';
+import { HamiltonGardensAdapter } from './hamilton-gardens.adapter';
 import { HamiltonLibrariesAdapter } from './hamilton-libraries.adapter';
+import { HliveAdapter } from './hlive.adapter';
 import { JsonFeedAdapter } from './json-feed.adapter';
 import { WaikatoMuseumAdapter } from './waikato-museum.adapter';
 
@@ -37,7 +39,9 @@ import { WaikatoMuseumAdapter } from './waikato-museum.adapter';
     SourceChangesService,
     IngestionScheduler,
     EventfindaAdapter,
+    HamiltonGardensAdapter,
     HamiltonLibrariesAdapter,
+    HliveAdapter,
     JsonFeedAdapter,
     WaikatoMuseumAdapter,
   ],

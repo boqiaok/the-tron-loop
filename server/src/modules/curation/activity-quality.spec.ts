@@ -93,6 +93,17 @@ describe('assessActivity', () => {
     ).toBe(QualityExclusion.Gambling);
   });
 
+  it('rewards an activity a curated guide also lists', () => {
+    const listed = assessActivity(
+      input({ signals: { ...NO_SOURCE_SIGNALS, curated: true } }),
+    );
+    expect(listed.reasons).toEqual([
+      QualityReason.OneOff,
+      QualityReason.CuratedListing,
+    ]);
+    expect(listed.score).toBeGreaterThan(assessActivity(input()).score);
+  });
+
   it('keeps the score between 0 and 100', () => {
     const everything = assessActivity(
       input({
@@ -104,6 +115,7 @@ describe('assessActivity', () => {
           soldOut: true,
           featured: true,
           performerCount: 3,
+          curated: true,
         },
       }),
     );

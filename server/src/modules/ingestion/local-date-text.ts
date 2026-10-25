@@ -16,6 +16,21 @@ const WEEKDAYS = [
 ];
 // Dates this far in the past belong to next year; sites omit the year.
 const PAST_TOLERANCE_DAYS = 60;
+const CLOCK = String.raw`\d{1,2}(?:[:.]\d{2})?\s*[ap]m`;
+const CLOCK_RANGE = new RegExp(
+  `(${CLOCK})(?:\\s*(?:-|–|—|to)\\s*(${CLOCK}))?`,
+  'i',
+);
+
+/**
+ * The first time or time range in free text, such as "9am - 5pm" in "Fri &
+ * Sat 9am - 5pm | Sun 9am - 4pm", in a form parseLocalDateText reads.
+ */
+export function findTimeText(text: string): string | null {
+  const match = CLOCK_RANGE.exec(text);
+  if (!match) return null;
+  return match[2] ? `${match[1]} - ${match[2]}` : match[1];
+}
 
 /**
  * Parses website date text such as "Thursday 15 October" or

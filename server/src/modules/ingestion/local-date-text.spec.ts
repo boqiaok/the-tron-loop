@@ -1,4 +1,4 @@
-import { parseLocalDateText } from './local-date-text';
+import { findTimeText, parseLocalDateText } from './local-date-text';
 
 const SEPTEMBER_22 = new Date('2026-09-22T00:00:00.000Z').getTime();
 
@@ -94,5 +94,20 @@ describe('parseLocalDateText', () => {
     expect(() =>
       parseLocalDateText('Fri 25 Sep', 'after lunch', SEPTEMBER_22),
     ).toThrow('Unrecognised time');
+  });
+});
+
+describe('findTimeText', () => {
+  it.each([
+    ['Fri & Sat 9am - 5pm | Sun 9am - 4pm', '9am - 5pm'],
+    ['vote on Sunday 1 November between 11.00am - 2.00pm!', '11.00am - 2.00pm'],
+    ['7:50pm arrival', '7:50pm'],
+    ['10am to 1pm', '10am - 1pm'],
+  ])('reads %p as %p', (text, time) => {
+    expect(findTimeText(text)).toBe(time);
+  });
+
+  it('finds nothing in text without a time', () => {
+    expect(findTimeText('To be announced')).toBeNull();
   });
 });

@@ -19,7 +19,7 @@ import { SourceType } from '../source-type.enum';
 )
 @Check(
   'CHK_sources_source_type',
-  "\"source_type\" IN ('json_feed', 'eventfinda', 'hamilton_libraries', 'waikato_museum')",
+  "\"source_type\" IN ('json_feed', 'eventfinda', 'hamilton_libraries', 'waikato_museum', 'hlive', 'hamilton_gardens')",
 )
 export class Source {
   @PrimaryGeneratedColumn('uuid')

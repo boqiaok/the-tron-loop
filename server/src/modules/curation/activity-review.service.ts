@@ -26,6 +26,8 @@ import { SourceSignalsService } from './source-signals.service';
 const TRUSTED_SOURCE_TYPES = new Set([
   SourceType.HamiltonLibraries,
   SourceType.WaikatoMuseum,
+  SourceType.Hlive,
+  SourceType.HamiltonGardens,
 ]);
 const LISTING_IDENTITY_SELECT = {
   id: true,

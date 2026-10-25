@@ -175,7 +175,9 @@ export interface ActivitySource {
     | "json_feed"
     | "eventfinda"
     | "hamilton_libraries"
-    | "waikato_museum";
+    | "waikato_museum"
+    | "hlive"
+    | "hamilton_gardens";
   feedUrl: string;
   enabled: boolean;
   scheduleHours: number;

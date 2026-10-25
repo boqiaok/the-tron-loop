@@ -5,6 +5,7 @@ export type ReviewGroup = "recommended" | "review" | "skip";
 
 export type ReviewReason =
   | "trusted_source"
+  | "curated_listing"
   | "previously_published"
   | "one_off"
   | "short_run"

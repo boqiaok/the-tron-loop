@@ -14,6 +14,7 @@ export enum QualityReason {
   LongRun = 'long_run',
   SoldOut = 'sold_out',
   Featured = 'featured',
+  CuratedListing = 'curated_listing',
   Festival = 'festival',
   Performance = 'performance',
   Performers = 'performers',
@@ -37,6 +38,7 @@ const REASON_WEIGHTS: Record<QualityReason, number> = {
   [QualityReason.LongRun]: -6,
   [QualityReason.SoldOut]: 20,
   [QualityReason.Featured]: 5,
+  [QualityReason.CuratedListing]: 12,
   [QualityReason.Festival]: 10,
   [QualityReason.Performance]: 10,
   [QualityReason.Performers]: 8,
@@ -98,6 +100,7 @@ export function assessActivity(input: QualityInput): QualityAssessment {
 
   if (input.signals.soldOut) reasons.push(QualityReason.SoldOut);
   if (input.signals.featured) reasons.push(QualityReason.Featured);
+  if (input.signals.curated) reasons.push(QualityReason.CuratedListing);
   if (FESTIVAL_TAGS.test(tagText)) reasons.push(QualityReason.Festival);
   if (PERFORMANCE_TAGS.test(tagText)) reasons.push(QualityReason.Performance);
   if (input.signals.performerCount > 0) reasons.push(QualityReason.Performers);

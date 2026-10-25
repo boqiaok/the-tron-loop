@@ -3,4 +3,6 @@ export enum SourceType {
   Eventfinda = 'eventfinda',
   HamiltonLibraries = 'hamilton_libraries',
   WaikatoMuseum = 'waikato_museum',
+  Hlive = 'hlive',
+  HamiltonGardens = 'hamilton_gardens',
 }

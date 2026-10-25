@@ -21,6 +21,7 @@ export type QualityReason =
   | "long_run"
   | "sold_out"
   | "featured"
+  | "curated_listing"
   | "festival"
   | "performance"
   | "performers"

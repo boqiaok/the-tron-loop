@@ -1,3 +1,4 @@
+import { TZDateMini } from '@date-fns/tz';
 import {
   BadRequestException,
   ConflictException,
@@ -6,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { createHash } from 'node:crypto';
-import { Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import { ActivitiesService } from '../activities/activities.service';
 import { createSlug, findAvailableSlug } from '../activities/activity-slug';
 import { Activity } from '../activities/entities/activity.entity';
@@ -27,7 +28,9 @@ import { ImportRun, ImportRunStatus } from './entities/import-run.entity';
 import { Source } from './entities/source.entity';
 import { isSameTitle, isSameVenue } from './activity-match';
 import { EventfindaAdapter } from './eventfinda.adapter';
+import { HamiltonGardensAdapter } from './hamilton-gardens.adapter';
 import { HamiltonLibrariesAdapter } from './hamilton-libraries.adapter';
+import { HliveAdapter } from './hlive.adapter';
 import { JsonFeedAdapter } from './json-feed.adapter';
 import { WaikatoMuseumAdapter } from './waikato-museum.adapter';
 import { getImportWindow } from './import-window';
@@ -78,12 +81,16 @@ export class IngestionService {
     eventfindaAdapter: EventfindaAdapter,
     hamiltonLibrariesAdapter: HamiltonLibrariesAdapter,
     waikatoMuseumAdapter: WaikatoMuseumAdapter,
+    hliveAdapter: HliveAdapter,
+    hamiltonGardensAdapter: HamiltonGardensAdapter,
   ) {
     this.adapters = {
       [SourceType.JsonFeed]: jsonFeedAdapter,
       [SourceType.Eventfinda]: eventfindaAdapter,
       [SourceType.HamiltonLibraries]: hamiltonLibrariesAdapter,
       [SourceType.WaikatoMuseum]: waikatoMuseumAdapter,
+      [SourceType.Hlive]: hliveAdapter,
+      [SourceType.HamiltonGardens]: hamiltonGardensAdapter,
     };
   }
 
@@ -539,8 +546,9 @@ export class IngestionService {
 
   /**
    * Finds an activity already describing this listing: first by the exact
-   * import fingerprint, then across other sources by a shared start time with
-   * the same title and a compatible venue (sources name venues differently).
+   * import fingerprint, then across other sources by a shared start time (or
+   * day, for an all-day date) with the same title and a compatible venue
+   * (sources name venues differently).
    */
   private async findDuplicate(
     source: Source,
@@ -554,13 +562,37 @@ export class IngestionService {
     if (exact && exact.id !== existingId) return exact;
     if (!item.dates.length) return null;
 
+    // A source that has not announced times lists the day as all day, so an
+    // all-day date meets any start on its local day, in either direction.
+    const timed = item.dates.filter((date) => !date.isAllDay);
+    const allDay = item.dates
+      .filter((date) => date.isAllDay)
+      .map((date) => localDayBounds(date.startsAt, date.timezone));
     const query = this.activities
       .createQueryBuilder('activity')
       .innerJoin('activity.dates', 'date')
       .leftJoinAndSelect('activity.venue', 'venue')
-      .where('date.startsAt IN (:...startsAt)', {
-        startsAt: item.dates.map((date) => new Date(date.startsAt)),
-      })
+      .where(
+        new Brackets((sameDay) => {
+          if (timed.length) {
+            sameDay
+              .orWhere('date.startsAt IN (:...startsAt)', {
+                startsAt: timed.map((date) => new Date(date.startsAt)),
+              })
+              .orWhere('date.isAllDay = true AND date.startsAt IN (:...days)', {
+                days: timed.map(
+                  (date) => localDayBounds(date.startsAt, date.timezone).from,
+                ),
+              });
+          }
+          allDay.forEach(({ from, to }, index) => {
+            sameDay.orWhere(
+              `date.startsAt >= :dayFrom${index} AND date.startsAt < :dayTo${index}`,
+              { [`dayFrom${index}`]: from, [`dayTo${index}`]: to },
+            );
+          });
+        }),
+      )
       .andWhere('activity.sourceId IS DISTINCT FROM :sourceId', {
         sourceId: source.id,
       });
@@ -576,6 +608,24 @@ export class IngestionService {
       ) ?? null
     );
   }
+}
+
+/** Local midnight to the next midnight for the day a start falls on. */
+function localDayBounds(
+  startsAt: string,
+  timezone: string,
+): { from: Date; to: Date } {
+  const start = new TZDateMini(startsAt, timezone);
+  const midnight = (offsetDays: number) =>
+    new Date(
+      new TZDateMini(
+        start.getFullYear(),
+        start.getMonth(),
+        start.getDate() + offsetDays,
+        timezone,
+      ).getTime(),
+    );
+  return { from: midnight(0), to: midnight(1) };
 }
 
 function fingerprint(value: string): string {

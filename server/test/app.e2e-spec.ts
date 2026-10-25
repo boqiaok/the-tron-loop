@@ -35,6 +35,7 @@ describe('Application (e2e)', () => {
   let feedServer: Server;
   let feedUrl: string;
   let changingFeedItems: Record<string, unknown>[] = [];
+  const pathFeeds = new Map<string, Record<string, unknown>[]>();
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -68,6 +69,11 @@ describe('Application (e2e)', () => {
       response.setHeader('Content-Type', 'application/json');
       if (incoming.url === '/changing.json') {
         response.end(JSON.stringify({ items: changingFeedItems }));
+        return;
+      }
+      const pathFeed = pathFeeds.get(incoming.url ?? '');
+      if (pathFeed) {
+        response.end(JSON.stringify({ items: pathFeed }));
         return;
       }
       response.end(
@@ -646,6 +652,76 @@ describe('Application (e2e)', () => {
     run = await importRun();
     expect(await outcome(run.id)).toMatchObject({ outcome: 'unchanged' });
     expect(await pendingFor(activity.id)).toBeUndefined();
+  });
+
+  it('matches an all-day listing to a timed one on the same day across sources', async () => {
+    const token = `AllDay${Date.now()}`;
+    const listing = (
+      externalId: string,
+      startsAt: string,
+      isAllDay = false,
+    ) => ({
+      externalId,
+      title: `${token} Scarecrow Festival`,
+      description: 'A festival listed by two sources',
+      startsAt,
+      isAllDay,
+      venue: { name: `${token} Gardens`, address: 'Hungerford Crescent' },
+    });
+    pathFeeds.set(`/${token}-timed.json`, [
+      listing('first-day', '2099-07-10T11:00:00+12:00'),
+    ]);
+    pathFeeds.set(`/${token}-all-day.json`, [
+      listing('first-day', '2099-07-10T00:00:00+12:00', true),
+      listing('second-day', '2099-07-11T00:00:00+12:00', true),
+    ]);
+    pathFeeds.set(`/${token}-timed-later.json`, [
+      listing('second-day', '2099-07-11T11:00:00+12:00'),
+    ]);
+    const importFeed = async (path: string) => {
+      const sourceResponse = await adminAgent
+        .post('/api/v1/admin/sources')
+        .send({
+          name: `E2E ${path}`,
+          sourceType: SourceType.JsonFeed,
+          feedUrl: feedUrl.replace('/events.json', path),
+        })
+        .expect(201);
+      const source = sourceResponse.body as { id: string };
+      sourceIds.push(source.id);
+      const run = await adminAgent
+        .post(`/api/v1/admin/sources/${source.id}/import`)
+        .expect(201);
+      const activities = await dataSource
+        .getRepository(Activity)
+        .findBy({ sourceId: source.id });
+      activityIds.push(...activities.map(({ id }) => id));
+      return {
+        run: run.body as { createdCount: number; duplicateCount: number },
+        items: await dataSource
+          .getRepository(ImportItem)
+          .findBy({ sourceId: source.id }),
+        activities,
+      };
+    };
+
+    const timed = await importFeed(`/${token}-timed.json`);
+    const allDay = await importFeed(`/${token}-all-day.json`);
+    expect(allDay.run).toMatchObject({ createdCount: 1, duplicateCount: 1 });
+    expect(
+      allDay.items.find(({ externalId }) => externalId === 'first-day'),
+    ).toMatchObject({
+      outcome: 'duplicate',
+      activityId: timed.activities[0].id,
+    });
+
+    const later = await importFeed(`/${token}-timed-later.json`);
+    expect(later.run).toMatchObject({ createdCount: 0, duplicateCount: 1 });
+    expect(later.items[0].activityId).toBe(
+      allDay.activities.find(({ externalId }) => externalId === 'second-day')
+        ?.id,
+    );
+    await dataSource.getRepository(Venue).delete({ name: `${token} Gardens` });
   });
 
   it('GET /api/v1/health reports a healthy database', () => {

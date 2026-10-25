@@ -18,6 +18,8 @@ const SOURCE_TYPE_LABELS: Record<ActivitySource["sourceType"], string> = {
   eventfinda: "Eventfinda",
   hamilton_libraries: "Hamilton Libraries",
   waikato_museum: "Waikato Museum",
+  hlive: "HLive",
+  hamilton_gardens: "Hamilton Gardens",
   json_feed: "JSON feed",
 };
 
@@ -26,6 +28,9 @@ const DEFAULT_FEED_URLS: Record<ActivitySource["sourceType"], string> = {
   eventfinda: "https://api.eventfinda.co.nz/v2/events.json",
   hamilton_libraries: "https://hamiltonlibraries.co.nz/all-events/whats-on",
   waikato_museum: "https://tewharetaonga.nz/whats-on",
+  hlive: "https://hlive.co.nz/events",
+  hamilton_gardens:
+    "https://hamiltongardens.co.nz/things-to-see-and-do-in-hamilton/whats-on",
   json_feed: "",
 };
 

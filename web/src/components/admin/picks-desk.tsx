@@ -46,6 +46,7 @@ const REASON_LABELS: Record<QualityReason, string> = {
   long_run: "Long run",
   sold_out: "Sold out",
   featured: "Promoted on source",
+  curated_listing: "Listed by HLive",
   festival: "Festival",
   performance: "Performance or talk",
   performers: "Named performers",

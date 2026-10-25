@@ -106,6 +106,23 @@ describe('classifyForReview', () => {
     });
   });
 
+  it('names a curated guide listing among the reasons to publish', () => {
+    expect(
+      review(
+        { title: 'Ninja Run', signals: { curated: true } },
+        { trustedSource: true },
+      ),
+    ).toEqual({
+      group: ReviewGroup.Recommended,
+      reasons: [
+        ReviewReason.TrustedSource,
+        ReviewReason.CuratedListing,
+        ReviewReason.OneOff,
+      ],
+      suggestedRejection: null,
+    });
+  });
+
   it('asks for a look at an unfamiliar weekly regular', () => {
     expect(
       review({ title: 'Weekly Dance Fitness Class', startTimes: weekly(3) }),

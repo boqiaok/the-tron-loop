@@ -23,6 +23,7 @@ export enum ReviewGroup {
 export enum ReviewReason {
   // Why an activity is safe to publish.
   TrustedSource = 'trusted_source',
+  CuratedListing = 'curated_listing',
   PreviouslyPublished = 'previously_published',
   OneOff = 'one_off',
   ShortRun = 'short_run',
@@ -129,6 +130,9 @@ export function classifyForReview(input: ReviewInput): ReviewClassification {
 
   const signals: ReviewReason[] = [];
   if (input.trustedSource) signals.push(ReviewReason.TrustedSource);
+  if (has(QualityReason.CuratedListing)) {
+    signals.push(ReviewReason.CuratedListing);
+  }
   if (input.previouslyPublished) {
     signals.push(ReviewReason.PreviouslyPublished);
   }

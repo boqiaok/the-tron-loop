@@ -77,6 +77,21 @@ const LABEL_CATEGORIES: Record<string, ActivityCategory> = {
   'te ao maaori': ActivityCategory.Community,
   // Waikato Museum listing kind
   exhibition: ActivityCategory.ArtsMusic,
+  // HLive event types ("Free" is a price, not a category)
+  film: ActivityCategory.ArtsMusic,
+  music: ActivityCategory.ArtsMusic,
+  family: ActivityCategory.Family,
+  interactive: ActivityCategory.Family,
+  kids: ActivityCategory.Family,
+  market: ActivityCategory.Market,
+  sport: ActivityCategory.Outdoors,
+  conference: ActivityCategory.Workshop,
+  workshop: ActivityCategory.Workshop,
+  awards: ActivityCategory.Community,
+  community: ActivityCategory.Community,
+  expo: ActivityCategory.Community,
+  festival: ActivityCategory.Community,
+  'gala dinner': ActivityCategory.Community,
 };
 
 const MARKET_WORDS = /\b(markets?|fairs?)\b/;

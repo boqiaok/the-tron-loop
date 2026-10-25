@@ -83,6 +83,7 @@ type Tone = "signal" | "risk" | "skip";
 
 const REASONS: Record<ReviewReason, { label: string; tone: Tone }> = {
   trusted_source: { label: "Trusted source", tone: "signal" },
+  curated_listing: { label: "Listed by HLive", tone: "signal" },
   previously_published: { label: "Published before", tone: "signal" },
   one_off: { label: "One-off", tone: "signal" },
   short_run: { label: "Short run", tone: "signal" },
