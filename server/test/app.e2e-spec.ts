@@ -724,6 +724,96 @@ describe('Application (e2e)', () => {
     await dataSource.getRepository(Venue).delete({ name: `${token} Gardens` });
   });
 
+  it('fills the missing cost of a draft from a matching listing and keeps it', async () => {
+    const token = `CostFill${Date.now()}`;
+    const listing = (
+      externalId: string,
+      title: string,
+      startsAt: string,
+      cost: Record<string, unknown> = {},
+    ) => ({
+      externalId,
+      title: `${token} ${title}`,
+      description: 'An event listed by two sources',
+      startsAt,
+      isAllDay: !cost.costType,
+      venue: { name: `${token} Arena`, address: 'Brooklyn Road' },
+      ...cost,
+    });
+    const priced = {
+      costType: 'paid',
+      costAmountFrom: 15,
+      costDetails: 'Tickets from NZ$15.00',
+    };
+    pathFeeds.set(`/${token}-no-price.json`, [
+      listing('draft', 'Obstacle Run', '2099-08-10T00:00:00+12:00'),
+      listing('published', 'Lantern Walk', '2099-08-11T00:00:00+12:00'),
+    ]);
+    pathFeeds.set(`/${token}-priced.json`, [
+      listing('draft', 'Obstacle Run', '2099-08-10T09:00:00+12:00', priced),
+      listing('published', 'Lantern Walk', '2099-08-11T19:00:00+12:00', priced),
+    ]);
+    const createSource = async (path: string) => {
+      const response = await adminAgent
+        .post('/api/v1/admin/sources')
+        .send({
+          name: `E2E ${path}`,
+          sourceType: SourceType.JsonFeed,
+          feedUrl: feedUrl.replace('/events.json', path),
+        })
+        .expect(201);
+      const { id } = response.body as { id: string };
+      sourceIds.push(id);
+      return id;
+    };
+    const runImport = (sourceId: string) =>
+      adminAgent.post(`/api/v1/admin/sources/${sourceId}/import`).expect(201);
+    const cost = async (id: string) => {
+      const { costType, costAmountFrom, costDetails } = await dataSource
+        .getRepository(Activity)
+        .findOneByOrFail({ id });
+      return { costType, costAmountFrom, costDetails };
+    };
+
+    const noPrice = await createSource(`/${token}-no-price.json`);
+    await runImport(noPrice);
+    const activities = await dataSource
+      .getRepository(Activity)
+      .findBy({ sourceId: noPrice });
+    activityIds.push(...activities.map(({ id }) => id));
+    const byExternalId = (externalId: string) =>
+      activities.find((activity) => activity.externalId === externalId)!.id;
+    const draft = byExternalId('draft');
+    const published = byExternalId('published');
+    await adminAgent
+      .post(`/api/v1/admin/activities/${published}/publish`)
+      .expect(200);
+
+    const pricedSource = await createSource(`/${token}-priced.json`);
+    await runImport(pricedSource);
+    const pricedItems = await dataSource
+      .getRepository(ImportItem)
+      .findBy({ sourceId: pricedSource });
+    expect(pricedItems.map(({ outcome }) => outcome)).toEqual([
+      'duplicate',
+      'duplicate',
+    ]);
+    expect(
+      pricedItems.find(({ activityId }) => activityId === draft)?.message,
+    ).toMatch(/and filled its missing cost$/);
+    expect(await cost(draft)).toEqual({
+      costType: 'paid',
+      costAmountFrom: '15.00',
+      costDetails: 'Tickets from NZ$15.00',
+    });
+    // Published activities change only through an editor.
+    expect((await cost(published)).costType).toBe('unknown');
+
+    await runImport(noPrice);
+    expect((await cost(draft)).costAmountFrom).toBe('15.00');
+    await dataSource.getRepository(Venue).delete({ name: `${token} Arena` });
+  });
+
   it('GET /api/v1/health reports a healthy database', () => {
     return request(app.getHttpServer())
       .get('/api/v1/health')

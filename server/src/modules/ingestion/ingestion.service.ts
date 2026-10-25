@@ -13,6 +13,7 @@ import { createSlug, findAvailableSlug } from '../activities/activity-slug';
 import { Activity } from '../activities/entities/activity.entity';
 import { Tag } from '../activities/entities/tag.entity';
 import { Venue } from '../activities/entities/venue.entity';
+import { ActivityCostType } from '../activities/enums/activity-cost-type.enum';
 import { ActivityStatus } from '../activities/enums/activity-status.enum';
 import { ActivityCategory } from '../activities/enums/activity-category.enum';
 import { ActivityEnvironment } from '../activities/enums/activity-environment.enum';
@@ -360,11 +361,18 @@ export class IngestionService {
       if (!existing && duplicate) {
         outcome = ImportItemOutcome.Duplicate;
         activityId = duplicate.id;
-        message = `Matches existing activity "${duplicate.title}" (same title, start time and venue)`;
+        const filledCost = await this.fillMissingCost(duplicate, item);
+        message = `Matches existing activity "${duplicate.title}" (same title, start time and venue)${filledCost ? ' and filled its missing cost' : ''}`;
       } else {
         const venueId = await this.resolveVenue(item.venue);
         const tagIds = await this.resolveTags(item.tags);
         const inferredScheduling = inferActivityScheduling(item);
+        // A listing without a price never clears a known one, such as a price
+        // filled in from another source's matching listing.
+        const keepCost =
+          existing !== null &&
+          item.costType === ActivityCostType.Unknown &&
+          existing.costType !== ActivityCostType.Unknown;
         const input = {
           title: item.title,
           summary: item.summary,
@@ -380,10 +388,21 @@ export class IngestionService {
           durationSource:
             item.durationSource ?? inferredScheduling.durationSource,
           sourceUrl: item.sourceUrl ?? source.feedUrl,
-          costType: item.costType,
-          costAmountFrom: item.costAmountFrom,
+          ...(keepCost
+            ? {
+                costType: existing.costType,
+                costAmountFrom:
+                  existing.costAmountFrom === null
+                    ? null
+                    : Number(existing.costAmountFrom),
+                costDetails: existing.costDetails,
+              }
+            : {
+                costType: item.costType,
+                costAmountFrom: item.costAmountFrom,
+                costDetails: item.costDetails,
+              }),
           currency: 'NZD',
-          costDetails: item.costDetails,
           venueId,
           tagIds,
           dates: item.dates.map((date) => ({
@@ -495,6 +514,31 @@ export class IngestionService {
    * people can go wait for an editor, compared with the listing the editor
    * last accepted rather than the activity, which the editor may have edited.
    */
+  /**
+   * Gives a draft without a known cost the price a matching listing from
+   * another source states. Published activities change only through review.
+   */
+  private async fillMissingCost(
+    activity: Activity,
+    item: ImportedActivity,
+  ): Promise<boolean> {
+    if (
+      activity.status !== ActivityStatus.Draft ||
+      activity.costType !== ActivityCostType.Unknown ||
+      item.costType === ActivityCostType.Unknown
+    ) {
+      return false;
+    }
+    await this.activities.update(activity.id, {
+      costType: item.costType,
+      costAmountFrom:
+        item.costAmountFrom === null ? null : item.costAmountFrom.toFixed(2),
+      currency: 'NZD',
+      costDetails: item.costDetails,
+    });
+    return true;
+  }
+
   private async compareWithPublished(
     activity: Activity,
     item: ImportedActivity,
