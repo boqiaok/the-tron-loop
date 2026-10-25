@@ -122,6 +122,22 @@ describe('diffSnapshots', () => {
       after: 'From $5.00',
     });
   });
+
+  it('reports a $0 ticket price that is now read as free', () => {
+    expect(
+      diffSnapshots(
+        snapshot({ costType: ActivityCostType.Paid, costAmountFrom: 0 }),
+        snapshot(),
+        now,
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        kind: SourceChangeKind.Cost,
+        before: 'From $0.00',
+        after: 'Free',
+      }),
+    ]);
+  });
 });
 
 describe('findAddedDates', () => {

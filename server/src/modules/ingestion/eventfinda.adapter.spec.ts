@@ -1,7 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import { ActivityCostType } from '../activities/enums/activity-cost-type.enum';
 import { Source } from './entities/source.entity';
-import { EventfindaAdapter } from './eventfinda.adapter';
+import { EventfindaAdapter, readTicketCost } from './eventfinda.adapter';
 import { SourceType } from './source-type.enum';
 
 describe('EventfindaAdapter', () => {
@@ -214,3 +214,88 @@ function source(): Source {
     lastRunAt: null,
   } as Source;
 }
+
+describe('readTicketCost', () => {
+  const tickets = (...ticketTypes: Record<string, unknown>[]) => ({
+    is_free: false,
+    ticket_types: {
+      '@attributes': { count: ticketTypes.length },
+      ticket_types: ticketTypes,
+    },
+  });
+
+  it('prices paid tickets from the cheapest', () => {
+    expect(
+      readTicketCost(tickets({ price: '35.00' }, { price: '12.50' })),
+    ).toEqual({
+      costType: ActivityCostType.Paid,
+      costAmountFrom: 12.5,
+      costDetails: 'Tickets from NZ$12.50',
+    });
+  });
+
+  it('ignores a $0 child or waitlist ticket beside paid ones', () => {
+    expect(
+      readTicketCost(
+        tickets(
+          { name: 'General Admission', price: '7.50' },
+          { name: 'Free for Under 12 Years old', price: '0.00' },
+        ),
+      ),
+    ).toEqual({
+      costType: ActivityCostType.Paid,
+      costAmountFrom: 7.5,
+      costDetails: 'Tickets from NZ$7.50',
+    });
+  });
+
+  it('makes all-$0 tickets free, noting when they are booked', () => {
+    expect(
+      readTicketCost(
+        tickets({
+          name: 'General Admission',
+          price: '0.00',
+          is_ticketed: true,
+        }),
+      ),
+    ).toEqual({
+      costType: ActivityCostType.Free,
+      costAmountFrom: 0,
+      costDetails: 'Free, booking required',
+    });
+    expect(
+      readTicketCost(
+        tickets({
+          name: 'General Admission',
+          price: '0.00',
+          is_ticketed: false,
+        }),
+      ).costDetails,
+    ).toBe('Free admission');
+  });
+
+  it('describes a $0 koha ticket as koha', () => {
+    expect(
+      readTicketCost(
+        tickets({ name: 'Give what you can Koha on the day', price: '0.00' }),
+      ),
+    ).toEqual({
+      costType: ActivityCostType.Free,
+      costAmountFrom: 0,
+      costDetails: 'Koha (give what you can)',
+    });
+  });
+
+  it('trusts the free flag and leaves an event without tickets unknown', () => {
+    expect(readTicketCost({ is_free: true })).toEqual({
+      costType: ActivityCostType.Free,
+      costAmountFrom: 0,
+      costDetails: 'Free admission',
+    });
+    expect(readTicketCost({ is_free: false })).toEqual({
+      costType: ActivityCostType.Unknown,
+      costAmountFrom: null,
+      costDetails: null,
+    });
+  });
+});

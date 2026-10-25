@@ -2,6 +2,7 @@ import { TZDateMini } from '@date-fns/tz';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ActivityCostType } from '../activities/enums/activity-cost-type.enum';
+import { ImportedCost } from './cost-text';
 import { Source } from './entities/source.entity';
 import { getImportWindow, isWithinImportWindow } from './import-window';
 import { inferCategory } from './infer-category';
@@ -144,8 +145,6 @@ function mapEventfindaActivity(raw: Record<string, unknown>): ImportedActivity {
     ? { latitude, longitude }
     : { latitude: null, longitude: null };
   const category = isRecord(raw.category) ? raw.category : null;
-  const prices = readPrices(raw.ticket_types);
-  const isFree = raw.is_free === true;
 
   return {
     externalId,
@@ -165,17 +164,7 @@ function mapEventfindaActivity(raw: Record<string, unknown>): ImportedActivity {
         }
       : null,
     tags: category ? [readString(category, 'name', 120)] : [],
-    costType: isFree
-      ? ActivityCostType.Free
-      : prices.length
-        ? ActivityCostType.Paid
-        : ActivityCostType.Unknown,
-    costAmountFrom: isFree ? 0 : prices.length ? Math.min(...prices) : null,
-    costDetails: isFree
-      ? 'Free admission'
-      : prices.length
-        ? `Tickets from NZ$${Math.min(...prices).toFixed(2)}`
-        : null,
+    ...readTicketCost(raw),
     isCancelled: raw.is_cancelled === true || dates.length === 0,
     raw,
   };
@@ -232,10 +221,54 @@ function parseLocalDateTime(value: string, timezone: string): string {
   return date.toISOString();
 }
 
-function readPrices(collection: unknown): number[] {
-  return readCollection(collection, 'ticket_types')
+const KOHA = /\bkoha\b|give what you can/i;
+
+/**
+ * The cost from Eventfinda's free flag and ticket types. Tickets that are all
+ * $0 make a free event, often one that takes bookings; a $0 ticket beside
+ * paid ones, such as a child or waitlist ticket, does not lower the price.
+ */
+export function readTicketCost(raw: Record<string, unknown>): ImportedCost {
+  if (raw.is_free === true) return free('Free admission');
+
+  const tickets = readCollection(raw.ticket_types, 'ticket_types').filter(
+    (ticket) =>
+      Number.isFinite(Number(ticket.price)) && Number(ticket.price) >= 0,
+  );
+  const prices = tickets
     .map((ticket) => Number(ticket.price))
-    .filter((price) => Number.isFinite(price) && price >= 0);
+    .filter((price) => price > 0);
+  if (prices.length) {
+    const from = Math.min(...prices);
+    return {
+      costType: ActivityCostType.Paid,
+      costAmountFrom: from,
+      costDetails: `Tickets from NZ$${from.toFixed(2)}`,
+    };
+  }
+  if (!tickets.length) {
+    return {
+      costType: ActivityCostType.Unknown,
+      costAmountFrom: null,
+      costDetails: null,
+    };
+  }
+  if (
+    tickets.some(
+      (ticket) => typeof ticket.name === 'string' && KOHA.test(ticket.name),
+    )
+  ) {
+    return free('Koha (give what you can)');
+  }
+  return free(
+    tickets.some((ticket) => ticket.is_ticketed === true)
+      ? 'Free, booking required'
+      : 'Free admission',
+  );
+}
+
+function free(costDetails: string): ImportedCost {
+  return { costType: ActivityCostType.Free, costAmountFrom: 0, costDetails };
 }
 
 function uniqueDates(dates: ImportedActivityDate[]): ImportedActivityDate[] {
