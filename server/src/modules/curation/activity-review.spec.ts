@@ -316,6 +316,43 @@ describe('findDuplicates', () => {
     expect([...duplicates]).toEqual([['sold-out', 'bookable']]);
   });
 
+  it('marks a reworded title at the same venue and start time', () => {
+    const duplicates = findDuplicates(
+      [
+        draft({
+          id: 'renamed',
+          title: "Hamilton Farmers' Market",
+          venueId: 'barn',
+        }),
+      ],
+      [
+        {
+          id: 'live',
+          title: "Farmers' Market",
+          venueId: 'barn',
+          startTimes: [soon],
+        },
+      ],
+    );
+    expect([...duplicates]).toEqual([['renamed', 'live']]);
+  });
+
+  it('keeps a reworded title at the same venue at another time', () => {
+    expect(
+      findDuplicates(
+        [draft({ id: 'junior', title: 'Lego Club Junior' })],
+        [
+          {
+            id: 'club',
+            title: 'Lego Club',
+            venueId: 'library',
+            startTimes: [new Date(soon.getTime() + DAY)],
+          },
+        ],
+      ).size,
+    ).toBe(0);
+  });
+
   it('keeps listings at other venues and times', () => {
     expect(
       findDuplicates(

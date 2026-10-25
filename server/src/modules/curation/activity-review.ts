@@ -6,6 +6,7 @@ import {
   QualityExclusion,
   QualityReason,
 } from './activity-quality';
+import { isSameTitle } from '../ingestion/activity-match';
 
 /**
  * Editorial rules that sort draft activities for a family and community
@@ -199,8 +200,10 @@ export interface DraftIdentity extends ListingIdentity {
 
 /**
  * Finds drafts that repeat a current published activity or another draft:
- * the same title at the same venue or the same start time. Among drafts, the
- * one kept is the one people can still book with the most dates.
+ * the same title at the same venue or the same start time, or a reworded
+ * title ("Hamilton Farmers' Market" and "Farmers' Market") at the same venue
+ * and a shared start time. Among drafts, the one kept is the one people can
+ * still book with the most dates.
  * Returns the ID each duplicate repeats.
  */
 export function findDuplicates(
@@ -208,7 +211,7 @@ export function findDuplicates(
   currentPublished: ListingIdentity[],
 ): Map<string, string> {
   const duplicates = new Map<string, string>();
-  const kept = groupByTitle(currentPublished);
+  const kept = [...currentPublished];
   const preferred = [...drafts].sort(
     (left, right) =>
       Number(left.soldOut) - Number(right.soldOut) ||
@@ -218,12 +221,20 @@ export function findDuplicates(
 
   for (const draft of preferred) {
     const key = formatKey(draft.title);
-    const sameTitle = kept.get(key) ?? [];
-    const original = sameTitle.find((listing) => isSameListing(draft, listing));
+    const original =
+      kept.find(
+        (listing) =>
+          formatKey(listing.title) === key && isSameListing(draft, listing),
+      ) ??
+      kept.find(
+        (listing) =>
+          isSameTitle(listing.title, draft.title) &&
+          isRewordedListing(draft, listing),
+      );
     if (original) {
       duplicates.set(draft.id, original.id);
     } else {
-      kept.set(key, [...sameTitle, draft]);
+      kept.push(draft);
     }
   }
 
@@ -232,17 +243,24 @@ export function findDuplicates(
 
 function isSameListing(left: ListingIdentity, right: ListingIdentity) {
   if (left.venueId && left.venueId === right.venueId) return true;
-  const starts = new Set(right.startTimes.map((date) => date.getTime()));
-  return left.startTimes.some((date) => starts.has(date.getTime()));
+  return sharesStart(left, right);
 }
 
-function groupByTitle(listings: ListingIdentity[]) {
-  const groups = new Map<string, ListingIdentity[]>();
-  for (const listing of listings) {
-    const key = formatKey(listing.title);
-    groups.set(key, [...(groups.get(key) ?? []), listing]);
-  }
-  return groups;
+/**
+ * A reworded title is weaker evidence, and one venue runs related sessions
+ * such as "Lego Club" and "Lego Club Junior", so both must also match.
+ */
+function isRewordedListing(left: ListingIdentity, right: ListingIdentity) {
+  return (
+    left.venueId !== null &&
+    left.venueId === right.venueId &&
+    sharesStart(left, right)
+  );
+}
+
+function sharesStart(left: ListingIdentity, right: ListingIdentity) {
+  const starts = new Set(right.startTimes.map((date) => date.getTime()));
+  return left.startTimes.some((date) => starts.has(date.getTime()));
 }
 
 /**
