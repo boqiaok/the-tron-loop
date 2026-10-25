@@ -12,6 +12,7 @@ import {
 } from "@/lib/activities/format";
 import {
   formatCadence,
+  formatSessionDays,
   formatSessionSpan,
   formatSessionTimes,
   type Occurrence,
@@ -30,16 +31,20 @@ export function ActivityRow({
   occurrence: Occurrence;
   recurring?: boolean;
 }) {
-  const { activity, date, ongoingDays } = occurrence;
+  const { activity, date, series } = occurrence;
   const sessions = occurrence.sessions ?? [date];
   const time = describeTime(occurrence);
-  const sessionMeta = ongoingDays
-    ? formatSessionSpan(sessions)
-    : sessions.length > 1
-      ? formatSessionTimes(sessions)
-      : null;
+  const sessionMeta =
+    series?.kind === "ongoing"
+      ? formatSessionSpan(sessions)
+      : series && series.days > 1
+        ? formatSessionDays(sessions)
+        : sessions.length > 1
+        ? formatSessionTimes(sessions)
+        : null;
   const cancelled = activity.status === "cancelled";
   const cost = getCostLabel(activity);
+  const otherVenues = series?.otherVenues ? `+${series.otherVenues} more` : null;
   const venue = formatVenue(activity);
   const venueShort = formatVenueShort(activity);
   const distance = formatDistance(activity.distanceKm);
@@ -107,7 +112,12 @@ export function ActivityRow({
               {/* Desktop meta line */}
               <span className="hidden flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-meta md:flex">
                 <CategoryLabel category={activity.category} />
-                {venue ? <span>{venue}</span> : null}
+                {venue ? (
+                  <span>
+                    {venue}
+                    {otherVenues ? ` ${otherVenues}` : null}
+                  </span>
+                ) : null}
                 {sessionMeta ? <span>{sessionMeta}</span> : null}
                 {distance ? <span>{distance}</span> : null}
                 {recurring ? <span>{formatCadence(date)}</span> : null}
@@ -120,6 +130,9 @@ export function ActivityRow({
                   <>
                     <span aria-hidden="true">·</span>
                     <span className="truncate">{venueShort}</span>
+                    {series?.otherVenues ? (
+                      <span className="shrink-0">+{series.otherVenues}</span>
+                    ) : null}
                   </>
                 ) : null}
                 {distance ? <span className="shrink-0">{distance}</span> : null}
@@ -160,33 +173,28 @@ export function ActivityRow({
 }
 
 /**
- * The time column: an ongoing row gives how often it runs, a row folding
- * several sessions gives the first start and how many more follow.
+ * The time column: an ongoing row gives how often it runs, a series row the
+ * first start and how many days it runs, a row folding several sessions the
+ * first start and how many more follow.
  */
-function describeTime({ date, sessions = [date], ongoingDays }: Occurrence): {
+function describeTime({ date, sessions = [date], series }: Occurrence): {
   primary: string;
   secondary: string | null;
 } {
-  if (ongoingDays) {
+  if (series?.kind === "ongoing") {
     const times = new Set(
       sessions.map((session) => (session.isAllDay ? "All day" : formatTime(session.startsAt))),
     );
     return {
-      primary: ongoingDays >= 7 ? "Daily" : `${ongoingDays} days`,
+      primary: series.days >= 7 ? "Daily" : `${series.days} days`,
       secondary: times.size === 1 ? [...times][0] : "Various",
     };
   }
-  if (date.isAllDay) return { primary: "All day", secondary: null };
-  if (sessions.length > 1) {
-    return {
-      primary: formatTime(date.startsAt),
-      secondary: `+${sessions.length - 1} more`,
-    };
-  }
-  return {
-    primary: formatTime(date.startsAt),
-    secondary: date.endsAt ? formatTime(date.endsAt) : null,
-  };
+  const primary = date.isAllDay ? "All day" : formatTime(date.startsAt);
+  if (series && series.days > 1) return { primary, secondary: `${series.days} days` };
+  if (sessions.length > 1) return { primary, secondary: `+${sessions.length - 1} more` };
+  if (date.isAllDay) return { primary, secondary: null };
+  return { primary, secondary: date.endsAt ? formatTime(date.endsAt) : null };
 }
 
 export function activityHref(slug: string, dateId?: string): string {

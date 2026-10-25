@@ -1,7 +1,14 @@
 import { ActivityRow } from "@/components/activities/activity-row";
-import type { OccurrenceGroup } from "@/lib/activities/occurrences";
+import { OngoingRows } from "@/components/activities/ongoing-rows";
+import {
+  ONGOING_GROUP_KEY,
+  type OccurrenceGroup,
+} from "@/lib/activities/occurrences";
 
-/** Day-grouped rows; each row links to the activity’s detail page. */
+/**
+ * Day-grouped rows; each row links to the activity’s detail page. The
+ * Ongoing group starts collapsed so it does not crowd out dated activities.
+ */
 export function OccurrenceList({
   groups,
   recurring = false,
@@ -36,13 +43,21 @@ export function OccurrenceList({
               </span>
             </span>
           </h3>
-          {group.occurrences.map((occurrence) => (
-            <ActivityRow
-              key={`${occurrence.date.id}-${group.key}`}
-              occurrence={occurrence}
+          {group.key === ONGOING_GROUP_KEY ? (
+            <OngoingRows
+              occurrences={group.occurrences}
+              groupKey={group.key}
               recurring={recurring}
             />
-          ))}
+          ) : (
+            group.occurrences.map((occurrence) => (
+              <ActivityRow
+                key={`${occurrence.date.id}-${group.key}`}
+                occurrence={occurrence}
+                recurring={recurring}
+              />
+            ))
+          )}
         </section>
       ))}
     </div>

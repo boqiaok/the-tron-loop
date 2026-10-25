@@ -8,14 +8,24 @@ export interface Occurrence {
   date: ActivityDate;
   /** Every session folded into this row, in time order. */
   sessions?: ActivityDate[];
-  /** Distinct days the activity runs on, set for ongoing rows. */
-  ongoingDays?: number;
+  /** Set when the row stands for a series on several days or at several venues. */
+  series?: Series;
 }
 
 /**
- * Activities on at least this many days of the listed range (exhibitions,
- * competitions, festival weeks) are listed once as ongoing, not every day.
+ * Activities sharing a title and category are one series: a library
+ * programme run at several branches, or an expo listed on each of its days.
+ * "ongoing" series stay at one venue on ONGOING_MIN_DAYS or more days
+ * (exhibitions, competitions); "dated" series are listed once, on their
+ * first day.
  */
+export interface Series {
+  kind: "dated" | "ongoing";
+  days: number;
+  /** The other venues the series also runs at. */
+  otherVenues: number;
+}
+
 export const ONGOING_MIN_DAYS = 4;
 export const ONGOING_GROUP_KEY = "ongoing";
 
@@ -35,47 +45,69 @@ export function isEveningStart(value: string): boolean {
   return Number(hourFormatter.format(new Date(value))) >= 17;
 }
 
+function seriesKey(activity: Activity): string {
+  const title = activity.title.trim().replace(/\s+/g, " ").toLowerCase();
+  return `${activity.category}:${title}`;
+}
+
 /**
- * Groups activities by local day with one row per activity per day; several
- * sessions on one day fold into that row. Activities running on
- * ONGOING_MIN_DAYS or more days lead the list once, as an "Ongoing" group.
- * Activities keep the order the API returned them in within a group, so a
- * distance sort survives grouping; otherwise rows are ordered by start time.
+ * Groups activities by local day with one row per series. Several sessions of
+ * an activity on one day fold into that row; a series on several days or at
+ * several venues is listed once, under the day of its first session. Ongoing
+ * series follow the days in an "Ongoing" group, so dated activities come first.
+ * Rows keep the order the API returned them in within a group, so a distance
+ * sort survives grouping and a series links to its nearest venue; otherwise
+ * rows are ordered by start time and a series links to its earliest session.
  */
 export function groupByDay(
   activities: Activity[],
   options: { keepOrder?: boolean; eveningOnly?: boolean } = {},
 ): OccurrenceGroup[] {
+  type Member = { activity: Activity; dates: ActivityDate[]; index: number };
   type Row = { occurrence: Occurrence; index: number };
-  const ongoing: Row[] = [];
-  const rows: Row[] = [];
+  const seriesByKey = new Map<string, Member[]>();
 
   activities.forEach((activity, index) => {
     const dates = activity.dates
       .filter((date) => !options.eveningOnly || isEveningStart(date.startsAt))
       .sort((left, right) => left.startsAt.localeCompare(right.startsAt));
-    const byDay = new Map<string, ActivityDate[]>();
-    for (const date of dates) {
-      const key = getDayKey(date.startsAt);
-      byDay.set(key, [...(byDay.get(key) ?? []), date]);
-    }
-
-    if (byDay.size >= ONGOING_MIN_DAYS) {
-      ongoing.push({
-        occurrence: {
-          activity,
-          date: dates[0],
-          sessions: dates,
-          ongoingDays: byDay.size,
-        },
-        index,
-      });
-      return;
-    }
-    for (const sessions of byDay.values()) {
-      rows.push({ occurrence: { activity, date: sessions[0], sessions }, index });
-    }
+    if (!dates.length) return;
+    const key = seriesKey(activity);
+    seriesByKey.set(key, [...(seriesByKey.get(key) ?? []), { activity, dates, index }]);
   });
+
+  const ongoing: Row[] = [];
+  const rows: Row[] = [];
+  for (const members of seriesByKey.values()) {
+    const lead = options.keepOrder
+      ? members[0]
+      : members.reduce((first, member) =>
+          member.dates[0].startsAt < first.dates[0].startsAt ? member : first,
+        );
+    const sessions = members
+      .flatMap((member) => member.dates)
+      .sort((left, right) => left.startsAt.localeCompare(right.startsAt));
+    const days = new Set(sessions.map((date) => getDayKey(date.startsAt))).size;
+    const venues = new Set(
+      members.map((member) => member.activity.venue?.id ?? member.activity.id),
+    ).size;
+    const occurrence: Occurrence = {
+      activity: lead.activity,
+      date: lead.dates[0],
+      sessions,
+    };
+    const row = { occurrence, index: lead.index };
+
+    if (venues === 1 && days >= ONGOING_MIN_DAYS) {
+      occurrence.series = { kind: "ongoing", days, otherVenues: 0 };
+      ongoing.push(row);
+    } else {
+      if (days > 1 || venues > 1) {
+        occurrence.series = { kind: "dated", days, otherVenues: venues - 1 };
+      }
+      rows.push(row);
+    }
+  }
 
   const byOrder = (left: Row, right: Row) =>
     options.keepOrder
@@ -103,23 +135,37 @@ export function groupByDay(
   );
   return ongoing.length
     ? [
+        ...dayGroups,
         {
           key: ONGOING_GROUP_KEY,
           label: "Ongoing",
           occurrences: ongoing.sort(byOrder).map((row) => row.occurrence),
         },
-        ...dayGroups,
       ]
     : dayGroups;
 }
 
-/** "Sat 26 – Sun 27 Sep" for the days an ongoing row covers. */
+/** "Sat 26 – Sun 27 Sep" for the days a series row covers. */
 export function formatSessionSpan(sessions: ActivityDate[]): string {
   const last = sessions[sessions.length - 1];
   return formatDayRange({
     from: sessions[0].startsAt,
     to: new Date(new Date(last.startsAt).getTime() + 1).toISOString(),
   });
+}
+
+const shortWeekdayFormatter = new Intl.DateTimeFormat("en-NZ", {
+  weekday: "short",
+  timeZone: ACTIVITY_TIME_ZONE,
+});
+
+/** The weekdays a dated series runs on, e.g. "Tue · Wed · Fri · Sat". */
+export function formatSessionDays(sessions: ActivityDate[]): string {
+  return [
+    ...new Set(
+      sessions.map((date) => shortWeekdayFormatter.format(new Date(date.startsAt))),
+    ),
+  ].join(" · ");
 }
 
 /** Start times of the sessions, e.g. "18:00 · 18:30 · 19:00 +2". */
