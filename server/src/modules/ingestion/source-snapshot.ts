@@ -155,7 +155,7 @@ export function withAddedDates(
  * Accepted upcoming dates missing from the source, only where both imports
  * covered the date: a date past the older window may simply not be listed.
  */
-function findRemovedDates(
+export function findRemovedDates(
   accepted: SourceSnapshot,
   current: SourceSnapshot,
   now: Date,
@@ -171,7 +171,13 @@ function findRemovedDates(
   });
 }
 
-function describeCost(snapshot: SourceSnapshot): string {
+type Cost = Pick<SourceSnapshot, 'costType' | 'costAmountFrom'>;
+
+export function isSameCost(left: Cost, right: Cost): boolean {
+  return describeCost(left) === describeCost(right);
+}
+
+function describeCost(snapshot: Cost): string {
   if (snapshot.costType === ActivityCostType.Free) return 'Free';
   if (snapshot.costType === ActivityCostType.Unknown) return 'Unknown';
   return snapshot.costAmountFrom === null

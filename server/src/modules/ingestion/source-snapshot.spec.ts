@@ -2,6 +2,7 @@ import { ActivityCostType } from '../activities/enums/activity-cost-type.enum';
 import {
   diffSnapshots,
   findAddedDates,
+  isSameCost,
   SourceChangeKind,
   SourceSnapshot,
   toUnlistedSnapshot,
@@ -201,5 +202,31 @@ describe('findAddedDates', () => {
       kind: SourceChangeKind.DatesRemoved,
       dates: [day(25)],
     });
+  });
+});
+
+describe('isSameCost', () => {
+  it('treats the same price stored differently as the same cost', () => {
+    expect(
+      isSameCost(
+        { costType: ActivityCostType.Paid, costAmountFrom: 5 },
+        { costType: ActivityCostType.Paid, costAmountFrom: 5.0 },
+      ),
+    ).toBe(true);
+    expect(
+      isSameCost(
+        { costType: ActivityCostType.Free, costAmountFrom: null },
+        { costType: ActivityCostType.Free, costAmountFrom: 0 },
+      ),
+    ).toBe(true);
+  });
+
+  it('tells a $0 ticket price apart from free', () => {
+    expect(
+      isSameCost(
+        { costType: ActivityCostType.Paid, costAmountFrom: 0 },
+        { costType: ActivityCostType.Free, costAmountFrom: null },
+      ),
+    ).toBe(false);
   });
 });

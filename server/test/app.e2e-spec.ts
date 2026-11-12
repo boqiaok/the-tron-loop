@@ -7,6 +7,7 @@ import { DataSource, In } from 'typeorm';
 import { AppModule } from './../src/app.module';
 import { setupApp } from './../src/app.setup';
 import { ActivityCategory } from './../src/modules/activities/enums/activity-category.enum';
+import { ActivityCostType } from './../src/modules/activities/enums/activity-cost-type.enum';
 import { ActivityDate } from './../src/modules/activities/entities/activity-date.entity';
 import { Activity } from './../src/modules/activities/entities/activity.entity';
 import { Tag } from './../src/modules/activities/entities/tag.entity';
@@ -612,35 +613,83 @@ describe('Application (e2e)', () => {
     expect(await outcome(run.id)).toMatchObject({ outcome: 'unchanged' });
     expect(await pendingFor(activity.id)).toBeUndefined();
 
-    // The JSON feed lists one date per item, so a new date replaces the old.
+    // The JSON feed lists one date per item, so a new date replaces the old:
+    // the new date is added and the old one removed.
     changingFeedItems = [listing({ startsAt: day(10) })];
+    run = await importRun();
+    expect(await outcome(run.id)).toMatchObject({
+      outcome: 'updated',
+      message: 'Added 1 new date, removed 1 date',
+    });
+    const startTimes = async () =>
+      (
+        await dataSource
+          .getRepository(ActivityDate)
+          .findBy({ activityId: activity.id })
+      ).map(({ startsAt }) => startsAt.toISOString());
+    expect(await startTimes()).toEqual([new Date(day(10)).toISOString()]);
+    expect(await pendingFor(activity.id)).toBeUndefined();
+
+    // A cost and title the editor has not changed follow the source.
+    changingFeedItems = [
+      listing({
+        startsAt: day(10),
+        title: `${token} Night Market`,
+        costType: 'paid',
+        costAmountFrom: 5,
+        costDetails: 'Entry NZ$5',
+      }),
+    ];
+    run = await importRun();
+    expect(await outcome(run.id)).toMatchObject({
+      outcome: 'updated',
+      message: 'Updated the cost, updated the title',
+    });
+    expect(
+      await dataSource.getRepository(Activity).findOneByOrFail({
+        id: activity.id,
+      }),
+    ).toMatchObject({
+      title: `${token} Night Market`,
+      costType: 'paid',
+      costAmountFrom: '5.00',
+      costDetails: 'Entry NZ$5',
+    });
+
+    // An edited cost is the editor's, so a later source change is reported.
+    await dataSource.getRepository(Activity).update(activity.id, {
+      costType: ActivityCostType.Free,
+      costAmountFrom: null,
+    });
+    changingFeedItems = [
+      listing({
+        startsAt: day(10),
+        title: `${token} Night Market`,
+        costType: 'paid',
+        costAmountFrom: 8,
+        venue: { name: 'Another Venue', address: '9 Other Road' },
+      }),
+    ];
     run = await importRun();
     expect(await outcome(run.id)).toMatchObject({
       outcome: 'review_required',
     });
-    const dates = await dataSource
-      .getRepository(ActivityDate)
-      .findBy({ activityId: activity.id });
-    expect(dates).toHaveLength(2);
     expect((await pendingFor(activity.id))?.changes).toEqual([
       {
-        kind: 'dates_removed',
-        before: null,
-        after: null,
-        dates: [new Date(day(3)).toISOString()],
+        kind: 'venue',
+        before: `${token} Hall`,
+        after: 'Another Venue',
+        dates: [],
       },
+      { kind: 'cost', before: 'From $5.00', after: 'From $8.00', dates: [] },
     ]);
-
-    changingFeedItems = [
-      listing({
-        startsAt: day(10),
-        venue: { name: 'Another Venue', address: '9 Other Road' },
-      }),
-    ];
-    await importRun();
     expect(
-      (await pendingFor(activity.id))?.changes.map(({ kind }) => kind),
-    ).toEqual(['dates_removed', 'venue']);
+      (
+        await dataSource.getRepository(Activity).findOneByOrFail({
+          id: activity.id,
+        })
+      ).costType,
+    ).toBe('free');
 
     await adminAgent
       .post(`/api/v1/admin/source-changes/${activity.id}/accept`)
@@ -652,6 +701,31 @@ describe('Application (e2e)', () => {
     run = await importRun();
     expect(await outcome(run.id)).toMatchObject({ outcome: 'unchanged' });
     expect(await pendingFor(activity.id)).toBeUndefined();
+
+    // With no upcoming date left, an editor decides whether it has ended.
+    changingFeedItems = [
+      listing({
+        startsAt: day(-1),
+        title: `${token} Night Market`,
+        costType: 'paid',
+        costAmountFrom: 8,
+        venue: { name: 'Another Venue', address: '9 Other Road' },
+      }),
+    ];
+    run = await importRun();
+    expect(await outcome(run.id)).toMatchObject({
+      outcome: 'review_required',
+    });
+    expect((await pendingFor(activity.id))?.changes).toEqual([
+      {
+        kind: 'dates_removed',
+        before: null,
+        after: null,
+        dates: [new Date(day(10)).toISOString()],
+      },
+    ]);
+    expect(await startTimes()).toEqual([new Date(day(10)).toISOString()]);
+    await dataSource.getRepository(Venue).delete({ name: `${token} Hall` });
   });
 
   it('matches an all-day listing to a timed one on the same day across sources', async () => {

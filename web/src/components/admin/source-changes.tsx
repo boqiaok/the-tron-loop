@@ -28,9 +28,10 @@ export function SourceChanges({ items }: { items: ChangedActivity[] }) {
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
         These are live on the public site, but their source has changed since
-        they were published. New dates are added automatically; everything
-        below needs an editor. Edit the listing if needed, then mark it as
-        checked.
+        they were published. Added and removed dates, cancellations, and a
+        cost or title you have not edited follow the source automatically;
+        everything below needs an editor. Edit the listing if needed, then
+        mark it as checked.
       </p>
       <ul className="mt-3 divide-y overflow-hidden rounded-xl border bg-white shadow-sm">
         {items.map((item) => (
@@ -46,6 +47,7 @@ function ChangedRow({ item }: { item: ChangedActivity }) {
   const [pending, setPending] = useState<"accept" | "cancel" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { activity, changes } = item;
+  const ended = suggestsCancelling(item);
 
   async function run(action: "accept" | "cancel") {
     setPending(action);
@@ -113,7 +115,7 @@ function ChangedRow({ item }: { item: ChangedActivity }) {
         >
           Edit
         </Link>
-        {suggestsCancelling(item) ? (
+        {ended ? (
           <Button
             size="sm"
             variant="destructive"
@@ -128,11 +130,12 @@ function ChangedRow({ item }: { item: ChangedActivity }) {
         ) : null}
         <Button
           size="sm"
+          variant={ended ? "outline" : "default"}
           disabled={pending !== null}
           onClick={() => run("accept")}
         >
           {pending === "accept" ? <LoaderCircle className="animate-spin" /> : null}
-          Mark as checked
+          {ended ? "Keep listed" : "Mark as checked"}
         </Button>
       </div>
     </li>

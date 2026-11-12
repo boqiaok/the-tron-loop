@@ -565,6 +565,18 @@ export class ActivitiesService {
     });
   }
 
+  /**
+   * Removes the dates starting at these times. Used when a source stops
+   * listing sessions of an activity that is already published.
+   */
+  async removeDates(id: string, startTimes: Date[]): Promise<void> {
+    if (!startTimes.length) return;
+    await this.dataSource.getRepository(ActivityDate).delete({
+      activityId: id,
+      startsAt: In(startTimes),
+    });
+  }
+
   async cancel(id: string): Promise<ActivityResponseDto> {
     await this.dataSource.transaction(async (manager) => {
       const activitiesRepository = manager.getRepository(Activity);

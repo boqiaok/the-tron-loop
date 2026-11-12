@@ -27,7 +27,7 @@ import {
 import { ImportItem, ImportItemOutcome } from './entities/import-item.entity';
 import { ImportRun, ImportRunStatus } from './entities/import-run.entity';
 import { Source } from './entities/source.entity';
-import { isSameTitle, isSameVenue } from './activity-match';
+import { isSameTitle, isSameVenue, normalizeTitle } from './activity-match';
 import { EventfindaAdapter } from './eventfinda.adapter';
 import { HamiltonGardensAdapter } from './hamilton-gardens.adapter';
 import { HamiltonLibrariesAdapter } from './hamilton-libraries.adapter';
@@ -40,6 +40,8 @@ import { ImportedActivity, SourceAdapter } from './source-adapter';
 import {
   diffSnapshots,
   findAddedDates,
+  findRemovedDates,
+  isSameCost,
   SourceSnapshot,
   toSourceSnapshot,
   toUnlistedSnapshot,
@@ -518,12 +520,6 @@ export class IngestionService {
   }
 
   /**
-   * A published activity keeps its content, but new dates from the source
-   * are added so a series stays listed. Other changes that affect whether
-   * people can go wait for an editor, compared with the listing the editor
-   * last accepted rather than the activity, which the editor may have edited.
-   */
-  /**
    * Published activities from this source that it no longer lists while
    * they still have upcoming dates inside the import window. The change is
    * left for an editor; once accepted, it is not raised again.
@@ -592,6 +588,14 @@ export class IngestionService {
     return true;
   }
 
+  /**
+   * A published activity follows its source where that is safe: new and
+   * removed dates, and a cost or title the editor has not changed, are
+   * applied, and a cancellation at the source cancels it. What remains waits
+   * for an editor, compared with the listing the editor last accepted rather
+   * than the activity: a changed venue, an edited field the source changed
+   * again, or every upcoming date gone.
+   */
   private async compareWithPublished(
     activity: Activity,
     item: ImportedActivity,
@@ -609,6 +613,19 @@ export class IngestionService {
 
     // The source lists the activity again, so it is no longer unlisted.
     let accepted = withoutUnlisted(activity.sourceSnapshot);
+    if (snapshot.cancelled && !accepted.cancelled) {
+      await this.activitiesService.cancel(activity.id);
+      await this.activities.update(activity.id, {
+        sourceSnapshot: snapshot,
+        pendingSourceSnapshot: null,
+      });
+      return {
+        outcome: ImportItemOutcome.Updated,
+        message: 'Cancelled because the source cancelled it',
+      };
+    }
+
+    const applied: string[] = [];
     const added = findAddedDates(accepted, snapshot, now);
     if (added.length && !snapshot.cancelled) {
       const addedTimes = new Set(added);
@@ -619,6 +636,58 @@ export class IngestionService {
         ),
       );
       accepted = withAddedDates(accepted, snapshot, added);
+      applied.push(`added ${countOf(added.length, 'new date')}`);
+    }
+
+    const removed = findRemovedDates(accepted, snapshot, now);
+    if (removed.length && (await this.keepsUpcomingDates(activity, removed))) {
+      await this.activitiesService.removeDates(
+        activity.id,
+        removed.map((date) => new Date(date)),
+      );
+      const removedTimes = new Set(removed);
+      accepted = {
+        ...accepted,
+        dates: accepted.dates.filter((date) => !removedTimes.has(date)),
+      };
+      applied.push(`removed ${countOf(removed.length, 'date')}`);
+    }
+
+    // The editor has not changed the cost, so it follows the source. A
+    // listing that stops stating a price never clears a known one.
+    const activityCost = {
+      costType: activity.costType,
+      costAmountFrom:
+        activity.costAmountFrom === null
+          ? null
+          : Number(activity.costAmountFrom),
+    };
+    if (
+      !isSameCost(accepted, snapshot) &&
+      isSameCost(accepted, activityCost) &&
+      snapshot.costType !== ActivityCostType.Unknown
+    ) {
+      await this.activities.update(activity.id, {
+        costType: item.costType,
+        costAmountFrom:
+          item.costAmountFrom === null ? null : item.costAmountFrom.toFixed(2),
+        costDetails: item.costDetails,
+      });
+      accepted = {
+        ...accepted,
+        costType: snapshot.costType,
+        costAmountFrom: snapshot.costAmountFrom,
+      };
+      applied.push('updated the cost');
+    }
+
+    if (
+      normalizeTitle(accepted.title) !== normalizeTitle(snapshot.title) &&
+      normalizeTitle(accepted.title) === normalizeTitle(activity.title)
+    ) {
+      await this.activities.update(activity.id, { title: item.title });
+      accepted = { ...accepted, title: snapshot.title };
+      applied.push('updated the title');
     }
 
     const changes = diffSnapshots(accepted, snapshot, now);
@@ -626,20 +695,42 @@ export class IngestionService {
       sourceSnapshot: accepted,
       pendingSourceSnapshot: changes.length ? snapshot : null,
     });
+    const appliedMessage = applied.length
+      ? capitalize(applied.join(', '))
+      : null;
     if (changes.length) {
+      const review = `The source changed: ${changes
+        .map(({ kind }) => kind.replace('_', ' '))
+        .join(', ')}`;
       return {
         outcome: ImportItemOutcome.ReviewRequired,
-        message: `The source changed: ${changes
-          .map(({ kind }) => kind.replace('_', ' '))
-          .join(', ')}`,
+        message: appliedMessage ? `${appliedMessage}. ${review}` : review,
       };
     }
-    return added.length && !snapshot.cancelled
-      ? {
-          outcome: ImportItemOutcome.Updated,
-          message: `Added ${added.length} new ${added.length === 1 ? 'date' : 'dates'}`,
-        }
+    return appliedMessage
+      ? { outcome: ImportItemOutcome.Updated, message: appliedMessage }
       : { outcome: ImportItemOutcome.Unchanged, message: null };
+  }
+
+  /**
+   * Whether the activity still has an upcoming date once these are removed.
+   * When none would remain, the activity has likely ended at its source, so
+   * an editor decides whether to cancel it.
+   */
+  private async keepsUpcomingDates(
+    activity: Activity,
+    removed: string[],
+  ): Promise<boolean> {
+    const removedTimes = new Set(removed.map((date) => Date.parse(date)));
+    const { dates } = await this.activities.findOneOrFail({
+      where: { id: activity.id },
+      relations: { dates: true },
+    });
+    const now = Date.now();
+    return dates.some(
+      ({ startsAt }) =>
+        startsAt.getTime() >= now && !removedTimes.has(startsAt.getTime()),
+    );
   }
 
   /**
@@ -743,6 +834,14 @@ function localDayBounds(
       ).getTime(),
     );
   return { from: midnight(0), to: midnight(1) };
+}
+
+function countOf(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`;
+}
+
+function capitalize(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 function fingerprint(value: string): string {
