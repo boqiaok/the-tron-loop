@@ -84,6 +84,11 @@ jobs:
         run: |
           ssh_remote() { ssh -i ~/.ssh/id_deploy -o BatchMode=yes "$SSH_TARGET" "$@"; }
 
+          # Each release is tagged by commit, so old releases are not dangling.
+          # Remove every image no container uses first: logging in and
+          # pulling both need free disk space.
+          ssh_remote "docker image prune -af && df -h /"
+
           printf '%s' "$GHCR_TOKEN" |
             ssh_remote "docker login ghcr.io -u '$GHCR_USER' --password-stdin"
 
@@ -94,9 +99,6 @@ jobs:
           git fetch --quiet origin main
           git checkout --quiet --force --detach "$IMAGE_TAG"
           export IMAGE_TAG
-          # Each release is tagged by commit, so old releases are not dangling.
-          # Remove every image no container uses before pulling the new one.
-          docker image prune -af
           docker compose -f docker-compose.prod.yml pull
           docker compose -f docker-compose.prod.yml up -d --remove-orphans --wait
           EOF
