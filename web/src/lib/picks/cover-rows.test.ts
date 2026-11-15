@@ -4,12 +4,12 @@ import { toCoverRows } from "./cover-rows";
 import type { Activity } from "@/types/activity";
 import type { WeeklyGuideItem } from "@/types/weekly-guide";
 
-function item(title: string, fields: Partial<Activity> = {}, kind: string | null = null): WeeklyGuideItem {
+function item(title: string, fields: Partial<Activity> = {}): WeeklyGuideItem {
   return {
-    kind,
     note: null,
     activity: {
       title,
+      blurb: null,
       status: "published",
       costType: "paid",
       costAmountFrom: 12.5,
@@ -25,7 +25,7 @@ function item(title: string, fields: Partial<Activity> = {}, kind: string | null
 describe("toCoverRows", () => {
   it("says what, when, where and how much for each pick", () => {
     const { rows, more } = toCoverRows({
-      items: [item("Convergence", {}, "Piano and taonga pūoro concert")],
+      items: [item("Convergence", { blurb: "A one hour concert of piano and taonga pūoro." })],
     });
 
     expect(more).toBe(0);
@@ -33,22 +33,22 @@ describe("toCoverRows", () => {
       {
         position: 1,
         title: "Convergence",
-        kind: "Piano and taonga pūoro concert",
+        blurb: "A one hour concert of piano and taonga pūoro.",
         details: "Wed 18 Nov, 19:00 · Gallagher Academy",
         cost: { label: "From $12.50", free: false },
       },
     ]);
   });
 
-  it("leaves out cancelled picks and counts those past the eighth", () => {
+  it("leaves out cancelled picks and counts those past the seventh", () => {
     const items = Array.from({ length: 10 }, (_, index) => item(`Pick ${index + 1}`));
     items[1] = item("Called off", { status: "cancelled" });
 
     const { rows, more } = toCoverRows({ items });
 
     expect(rows.map((row) => row.title)).not.toContain("Called off");
-    expect(rows).toHaveLength(8);
+    expect(rows).toHaveLength(7);
     expect(rows[1]).toMatchObject({ position: 2, title: "Pick 3" });
-    expect(more).toBe(1);
+    expect(more).toBe(2);
   });
 });

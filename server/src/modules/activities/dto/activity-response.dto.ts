@@ -75,6 +75,14 @@ export class ActivityResponseDto {
   @ApiProperty({ type: String, nullable: true })
   summary!: string | null;
 
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'One sentence on what the activity is and why it is worth going to',
+  })
+  blurb!: string | null;
+
   @ApiProperty()
   description!: string;
 

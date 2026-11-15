@@ -73,7 +73,7 @@ export function WeeklyPicks({
 }
 
 export function PickCard({
-  item: { activity, kind, note },
+  item: { activity, note },
   position,
 }: {
   item: WeeklyGuideItem;
@@ -114,9 +114,9 @@ export function PickCard({
             >
               {activity.title}
             </span>
-            {kind ? (
-              <span className="text-[13px] font-medium text-accent-foreground md:text-sm">
-                {kind}
+            {activity.blurb ? (
+              <span className="text-[13px] leading-[1.45] text-body md:text-sm">
+                {activity.blurb}
               </span>
             ) : null}
             <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-meta md:text-[13px]">

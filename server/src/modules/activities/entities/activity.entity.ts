@@ -67,6 +67,17 @@ export class Activity {
   @Column({ type: 'varchar', length: 500, nullable: true })
   summary!: string | null;
 
+  /**
+   * One sentence on what the activity is and why it is worth going to,
+   * shown under the title in listings.
+   */
+  @Column({ type: 'varchar', length: 200, nullable: true })
+  blurb!: string | null;
+
+  /** When the blurb was last drafted automatically, so each is asked once. */
+  @Column({ name: 'blurb_drafted_at', type: 'timestamptz', nullable: true })
+  blurbDraftedAt!: Date | null;
+
   @Column({ type: 'text' })
   description!: string;
 

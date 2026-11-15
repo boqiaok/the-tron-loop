@@ -7,9 +7,6 @@ export class WeeklyGuideItemResponseDto {
   @ApiProperty({ type: () => ActivityResponseDto })
   activity!: ActivityResponseDto;
 
-  @ApiProperty({ type: String, nullable: true, example: 'Indie rock concert' })
-  kind!: string | null;
-
   @ApiProperty({ type: String, nullable: true })
   note!: string | null;
 }

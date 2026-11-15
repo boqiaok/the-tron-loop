@@ -5,7 +5,7 @@ import { GoogleGenAI } from '@google/genai';
 import Ajv from 'ajv';
 import { CacheableMemory } from 'cacheable';
 import { Activity } from '../activities/entities/activity.entity';
-import { GeminiQuotaService } from './gemini-quota.service';
+import { GeminiQuotaService } from '../gemini/gemini-quota.service';
 
 /** Most activities scored in one request; the rest count as unrelated. */
 export const RELEVANCE_CANDIDATE_LIMIT = 60;

@@ -39,7 +39,6 @@ import type {
 
 const MAX_PICKS = 12;
 const NOTE_MAX_LENGTH = 280;
-const KIND_MAX_LENGTH = 60;
 const INTRO_MAX_LENGTH = 500;
 
 const REASON_LABELS: Record<QualityReason, string> = {
@@ -76,13 +75,7 @@ function exclusionLabel(candidate: GuideCandidate): string {
 
 interface Pick {
   activityId: string;
-  kind: string;
   note: string;
-}
-
-/** A new pick starts with the source's own category, for the editor to refine. */
-function defaultKind(activity: Activity | undefined): string {
-  return activity?.tags[0]?.name.slice(0, KIND_MAX_LENGTH) ?? "";
 }
 
 export function PicksDesk({ data }: { data: AdminWeeklyGuide }) {
@@ -91,7 +84,6 @@ export function PicksDesk({ data }: { data: AdminWeeklyGuide }) {
   const savedPicks: Pick[] =
     guide?.items.map((item) => ({
       activityId: item.activity.id,
-      kind: item.kind ?? "",
       note: item.note ?? "",
     })) ?? [];
   const savedIntro = guide?.intro ?? "";
@@ -118,10 +110,10 @@ export function PicksDesk({ data }: { data: AdminWeeklyGuide }) {
   const dirty =
     intro.trim() !== savedIntro ||
     JSON.stringify(
-      picks.map((pick) => [pick.activityId, pick.kind.trim(), pick.note.trim()]),
+      picks.map((pick) => [pick.activityId, pick.note.trim()]),
     ) !==
       JSON.stringify(
-        savedPicks.map((pick) => [pick.activityId, pick.kind, pick.note]),
+        savedPicks.map((pick) => [pick.activityId, pick.note]),
       );
   const published = guide?.status === "published";
   const draftPicks = picks.filter(
@@ -136,7 +128,7 @@ export function PicksDesk({ data }: { data: AdminWeeklyGuide }) {
         ? current
         : [
             ...current,
-            { activityId, kind: defaultKind(activities.get(activityId)), note: "" },
+            { activityId, note: "" },
           ],
     );
   }
@@ -197,7 +189,6 @@ export function PicksDesk({ data }: { data: AdminWeeklyGuide }) {
     intro: intro.trim() || null,
     items: picks.map((pick) => ({
       activityId: pick.activityId,
-      kind: pick.kind.trim() || null,
       note: pick.note.trim() || null,
     })),
   });
@@ -360,17 +351,7 @@ export function PicksDesk({ data }: { data: AdminWeeklyGuide }) {
                       </Button>
                     </div>
                   </div>
-                  <input
-                    id={`kind-${pick.activityId}`}
-                    aria-label={`What ${activity?.title ?? "this activity"} is`}
-                    value={pick.kind}
-                    maxLength={KIND_MAX_LENGTH}
-                    onChange={(event) =>
-                      edit(pick.activityId, { kind: event.target.value })
-                    }
-                    placeholder="What it is, e.g. Indie rock concert"
-                    className="h-9 rounded-md border bg-white px-2.5 text-sm shadow-xs outline-none focus:border-ring focus:ring-3 focus:ring-ring/20"
-                  />
+                  {activity ? <PickBlurb activity={activity} /> : null}
                   <input
                     id={`note-${pick.activityId}`}
                     aria-label={`Why go to ${activity?.title ?? "this activity"}`}
@@ -470,6 +451,23 @@ export function PicksDesk({ data }: { data: AdminWeeklyGuide }) {
   );
 }
 
+/** The activity's own blurb, which the picks show; edited on the activity. */
+function PickBlurb({ activity }: { activity: Activity }) {
+  return (
+    <p className="text-sm leading-[1.45] text-body">
+      {activity.blurb ?? (
+        <span className="text-muted-foreground">No blurb yet.</span>
+      )}{" "}
+      <Link
+        href={`/admin/activities/${activity.id}/edit`}
+        className="text-xs font-medium"
+      >
+        {activity.blurb ? "Edit" : "Write one"}
+      </Link>
+    </p>
+  );
+}
+
 function suggestedPicks(
   candidates: GuideCandidate[],
   existing: Map<string, Pick>,
@@ -480,7 +478,6 @@ function suggestedPicks(
       (candidate) =>
         existing.get(candidate.activity.id) ?? {
           activityId: candidate.activity.id,
-          kind: defaultKind(candidate.activity),
           note: "",
         },
     );

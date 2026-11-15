@@ -20,6 +20,19 @@ describe('Gemini daily budget', () => {
     expect(parse).toEqual([true, true, true, false]);
   });
 
+  it('keeps drafting blurbs to its own share of the day', () => {
+    const quota = new GeminiQuotaService(
+      new ConfigService({ GEMINI_DAILY_REQUEST_LIMIT: 10 }),
+    );
+
+    const blurbs = Array.from({ length: 4 }, () =>
+      quota.tryConsume('blurb', morning),
+    );
+
+    expect(blurbs).toEqual([true, true, false, false]);
+    expect(quota.tryConsume('parse', morning)).toBe(true);
+  });
+
   it('starts a new budget at midnight Pacific time', () => {
     const quota = new GeminiQuotaService(
       new ConfigService({ GEMINI_DAILY_REQUEST_LIMIT: 1 }),

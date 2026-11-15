@@ -24,7 +24,7 @@ export async function generateMetadata({
   const activity = await getActivity((await params).slug);
   if (!activity) return { title: "Activity not found" };
 
-  const description = activity.summary ?? undefined;
+  const description = activity.blurb ?? activity.summary ?? undefined;
   return {
     title: activity.title,
     description,

@@ -477,6 +477,11 @@ function ReviewRow({
             </a>
           ) : null}
         </div>
+        <p className="text-sm leading-[1.45] text-body">
+          {activity.blurb ?? (
+            <span className="text-muted-foreground">No blurb yet.</span>
+          )}
+        </p>
         <p className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
           <span>{activity.source?.name ?? "Added manually"}</span>
           {date ? (

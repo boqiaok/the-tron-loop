@@ -44,6 +44,8 @@ export interface Activity {
   title: string;
   slug: string;
   summary: string | null;
+  /** One sentence on what it is and why it is worth going to. */
+  blurb: string | null;
   description: string;
   imageUrl: string | null;
   category: ActivityCategory;

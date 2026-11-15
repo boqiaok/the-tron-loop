@@ -1,7 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 import { ConfigService } from '@nestjs/config';
 import { Activity } from '../activities/entities/activity.entity';
-import { GeminiQuotaService } from './gemini-quota.service';
+import { GeminiQuotaService } from '../gemini/gemini-quota.service';
 import { TopicRelevanceService } from './topic-relevance.service';
 
 jest.mock('@google/genai', () => ({ GoogleGenAI: jest.fn() }));

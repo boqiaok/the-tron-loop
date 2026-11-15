@@ -10,7 +10,7 @@ import { DiscoveryService } from '../src/modules/discovery/discovery.service';
 import { ActivityDate } from '../src/modules/activities/entities/activity-date.entity';
 import { Activity } from '../src/modules/activities/entities/activity.entity';
 import { Tag } from '../src/modules/activities/entities/tag.entity';
-import { GeminiQuotaService } from '../src/modules/discovery/gemini-quota.service';
+import { GeminiQuotaService } from '../src/modules/gemini/gemini-quota.service';
 import { TopicRelevanceService } from '../src/modules/discovery/topic-relevance.service';
 import { setupApp } from '../src/app.setup';
 

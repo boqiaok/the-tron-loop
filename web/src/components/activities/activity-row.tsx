@@ -52,7 +52,7 @@ export function ActivityRow({
   const venue = formatVenue(activity);
   const venueShort = formatVenueShort(activity);
   const distance = formatDistance(activity.distanceKm);
-  const summary = activity.summary ?? activity.description;
+  const summary = activity.blurb ?? activity.summary ?? activity.description;
   const visit =
     activity.scheduleMode === "window" && activity.visitMinutes
       ? `Drop in · ~${activity.visitMinutes} min visit`
@@ -105,7 +105,13 @@ export function ActivityRow({
             ) : null}
           </span>
           {summary ? (
-            <span className="line-clamp-2 text-xs leading-[1.45] text-body md:line-clamp-none md:truncate md:text-[13px]">
+            <span
+              className={cn(
+                "line-clamp-2 text-xs leading-[1.45] text-body md:text-[13px]",
+                // A blurb is one written sentence, so it is shown whole.
+                !activity.blurb && "md:line-clamp-none md:truncate",
+              )}
+            >
               {summary}
             </span>
           ) : null}

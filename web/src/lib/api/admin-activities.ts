@@ -26,6 +26,7 @@ export interface ActivityDateInput {
 
 export interface ActivityInput {
   title: string;
+  blurb: string | null;
   summary: string | null;
   description: string;
   imageUrl: string | null;

@@ -89,6 +89,7 @@ export class ActivitiesService {
           title: dto.title.trim(),
           slug,
           summary: dto.summary?.trim() || null,
+          blurb: dto.blurb?.trim() || null,
           description: dto.description.trim(),
           imageUrl: dto.imageUrl ?? null,
           category: dto.category ?? ActivityCategory.Community,
@@ -1087,6 +1088,11 @@ export class ActivitiesService {
     if (slug !== undefined) activity.slug = slug;
     if (dto.summary !== undefined)
       activity.summary = dto.summary?.trim() || null;
+    if (dto.blurb !== undefined) {
+      activity.blurb = dto.blurb?.trim() || null;
+      // A cleared blurb is drafted again on the next run.
+      if (!activity.blurb) activity.blurbDraftedAt = null;
+    }
     if (dto.description !== undefined)
       activity.description = dto.description.trim();
     if (dto.imageUrl !== undefined) activity.imageUrl = dto.imageUrl;

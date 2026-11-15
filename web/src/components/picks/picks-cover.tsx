@@ -13,7 +13,6 @@ const BODY = "#54585f";
 const META = "#6b6f76";
 const LINE = "#e1dfd8";
 const ACTION = "#2d5bff";
-const ACCENT_INK = "#1c3fbf";
 
 export function PicksCover({
   rangeLabel,
@@ -95,7 +94,7 @@ export function PicksCover({
             >
               {row.position}
             </span>
-            <div style={{ display: "flex", flexDirection: "column", flexGrow: 1, minWidth: 0, paddingRight: 20 }}>
+            <div style={{ display: "flex", flexDirection: "column", flex: "1 1 0", minWidth: 0, paddingRight: 20 }}>
               <span
                 style={{
                   fontSize: 36,
@@ -108,8 +107,19 @@ export function PicksCover({
               >
                 {row.title}
               </span>
-              {row.kind ? (
-                <span style={{ marginTop: 4, fontSize: 27, color: ACCENT_INK }}>{row.kind}</span>
+              {row.blurb ? (
+                <span
+                  style={{
+                    display: "block",
+                    marginTop: 4,
+                    fontSize: 24,
+                    lineHeight: 1.3,
+                    color: BODY,
+                    lineClamp: 2,
+                  }}
+                >
+                  {row.blurb}
+                </span>
               ) : null}
               <span
                 style={{

@@ -55,8 +55,12 @@ export function getListingWeek(instant: Date): { from: Date; to: Date } {
 export function listingKey(
   listing: Pick<TierListing, 'title' | 'category'>,
 ): string {
-  const title = listing.title.trim().replace(/\s+/g, ' ').toLowerCase();
-  return `${listing.category}:${title}`;
+  return `${listing.category}:${normalizeListingTitle(listing.title)}`;
+}
+
+/** The title as compared between listings: trimmed, spaced and lowercase. */
+export function normalizeListingTitle(title: string): string {
+  return title.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
 export function classifyListingTiers(

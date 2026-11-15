@@ -63,6 +63,7 @@ export function toActivityResponse(
     title: activity.title,
     slug: activity.slug,
     summary: activity.summary,
+    blurb: activity.blurb,
     description: activity.description,
     imageUrl: activity.imageUrl,
     category: activity.category,

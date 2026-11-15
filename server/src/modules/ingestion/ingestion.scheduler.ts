@@ -5,6 +5,7 @@ import {
   OnApplicationShutdown,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { ActivityBlurbsService } from './activity-blurbs.service';
 import { IngestionService } from './ingestion.service';
 
 @Injectable()
@@ -16,6 +17,7 @@ export class IngestionScheduler
 
   constructor(
     private readonly ingestionService: IngestionService,
+    private readonly activityBlurbs: ActivityBlurbsService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -25,6 +27,12 @@ export class IngestionScheduler
       await this.ingestionService.importDueSources();
     } catch (error) {
       this.logger.error('Scheduled import failed', error);
+    }
+    // Drafted after imports so new listings get a blurb within the hour.
+    try {
+      await this.activityBlurbs.draftMissing();
+    } catch (error) {
+      this.logger.error('Drafting listing blurbs failed', error);
     }
   }
 

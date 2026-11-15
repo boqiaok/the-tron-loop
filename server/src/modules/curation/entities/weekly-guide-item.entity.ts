@@ -48,10 +48,6 @@ export class WeeklyGuideItem {
   @Column({ type: 'smallint' })
   position!: number;
 
-  /** A few words on what the activity is, such as "Indie rock concert". */
-  @Column({ type: 'varchar', length: 60, nullable: true })
-  kind!: string | null;
-
   /** One line from the editor on why the activity is worth going to. */
   @Column({ type: 'varchar', length: 280, nullable: true })
   note!: string | null;

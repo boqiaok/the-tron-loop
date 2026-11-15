@@ -45,6 +45,7 @@ interface DateField {
 
 interface FormState {
   title: string;
+  blurb: string;
   summary: string;
   description: string;
   imageUrl: string;
@@ -264,6 +265,25 @@ export function ActivityForm({
               The URL slug is generated automatically from this title.
             </p>
           ) : null}
+        </div>
+
+        <div>
+          <label htmlFor="blurb" className={labelClassName}>
+            Blurb
+          </label>
+          <textarea
+            id="blurb"
+            className={cn(inputClassName, "min-h-16 resize-y")}
+            value={form.blurb}
+            onChange={(event) => update("blurb", event.target.value)}
+            maxLength={200}
+            disabled={readOnly}
+            placeholder="One sentence on what it is and why it’s worth going."
+          />
+          <p className="mt-1 flex justify-between gap-3 text-xs text-muted-foreground">
+            <span>Shown under the title in listings. Left empty, it is drafted automatically.</span>
+            <span>{form.blurb.length}/200</span>
+          </p>
         </div>
 
         <div>
@@ -776,6 +796,7 @@ function createInitialState(activity?: Activity): FormState {
 
   return {
     title: activity?.title ?? "",
+    blurb: activity?.blurb ?? "",
     summary: activity?.summary ?? "",
     description: activity?.description ?? "",
     imageUrl: activity?.imageUrl ?? "",
@@ -845,6 +866,7 @@ function toActivityInput(form: FormState): ActivityInput {
 
   return {
     title: form.title.trim(),
+    blurb: emptyToNull(form.blurb),
     summary: emptyToNull(form.summary),
     description: form.description.trim(),
     imageUrl: emptyToNull(form.imageUrl),

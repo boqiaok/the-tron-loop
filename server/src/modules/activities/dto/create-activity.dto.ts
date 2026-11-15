@@ -51,6 +51,18 @@ export class CreateActivityDto {
   @MaxLength(500)
   summary?: string | null;
 
+  @ApiPropertyOptional({
+    type: String,
+    maxLength: 200,
+    nullable: true,
+    description:
+      'One sentence on what the activity is and why it is worth going to',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  blurb?: string | null;
+
   @ApiProperty()
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,

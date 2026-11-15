@@ -16,7 +16,7 @@ import { ActivityCostType } from '../activities/enums/activity-cost-type.enum';
 import { NOT_REGULAR_ACTIVITY } from '../activities/activity-recurrence';
 import { ActivityStatus } from '../activities/enums/activity-status.enum';
 import { DurationSource } from '../activities/enums/duration-source.enum';
-import { GeminiQuotaService } from './gemini-quota.service';
+import { GeminiQuotaService } from '../gemini/gemini-quota.service';
 import { generatePlan, validatePlan, type PlanningItem } from './plan-engine';
 import {
   RELEVANCE_CANDIDATE_LIMIT,

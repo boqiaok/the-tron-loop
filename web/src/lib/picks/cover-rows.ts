@@ -7,13 +7,13 @@ import {
 import type { WeeklyGuide } from "@/types/weekly-guide";
 
 /** The cover lists this many picks; the rest are counted, not shown. */
-export const COVER_MAX_ROWS = 8;
+export const COVER_MAX_ROWS = 7;
 
 export interface CoverRow {
   position: number;
   title: string;
-  /** What it is, e.g. "Indie rock concert". */
-  kind: string | null;
+  /** One sentence on what it is. */
+  blurb: string | null;
   /** "Wed 18 Nov, 19:30 · BNZ Theatre". */
   details: string;
   cost: CostLabel | null;
@@ -39,7 +39,7 @@ export function toCoverRows(guide: Pick<WeeklyGuide, "items">): {
       return {
         position: index + 1,
         title: activity.title,
-        kind: item.kind,
+        blurb: activity.blurb,
         details: [when, venue].filter(Boolean).join(" · "),
         cost: getCostLabel(activity),
       };

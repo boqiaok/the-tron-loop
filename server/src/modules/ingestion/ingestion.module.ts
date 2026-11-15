@@ -17,12 +17,15 @@ import { EventfindaAdapter } from './eventfinda.adapter';
 import { HamiltonGardensAdapter } from './hamilton-gardens.adapter';
 import { HamiltonLibrariesAdapter } from './hamilton-libraries.adapter';
 import { HliveAdapter } from './hlive.adapter';
+import { GeminiModule } from '../gemini/gemini.module';
+import { ActivityBlurbsService } from './activity-blurbs.service';
 import { JsonFeedAdapter } from './json-feed.adapter';
 import { WaikatoMuseumAdapter } from './waikato-museum.adapter';
 
 @Module({
   imports: [
     AuthModule,
+    GeminiModule,
     ActivitiesModule,
     TypeOrmModule.forFeature([
       Source,
@@ -35,6 +38,7 @@ import { WaikatoMuseumAdapter } from './waikato-museum.adapter';
   ],
   controllers: [AdminSourceChangesController, IngestionController],
   providers: [
+    ActivityBlurbsService,
     IngestionService,
     SourceChangesService,
     IngestionScheduler,

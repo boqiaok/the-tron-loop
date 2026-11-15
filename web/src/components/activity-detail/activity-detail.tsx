@@ -124,6 +124,11 @@ export function ActivityDetail({
             >
               {activity.title}
             </h1>
+            {activity.blurb ? (
+              <p className="max-w-[60ch] font-serif text-lg leading-[1.45] text-body italic md:text-[21px]">
+                {activity.blurb}
+              </p>
+            ) : null}
             <span className="text-[15px] font-semibold md:hidden">
               {dayLabel} · {timeLabel}
             </span>
