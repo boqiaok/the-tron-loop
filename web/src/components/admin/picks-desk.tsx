@@ -27,6 +27,7 @@ import {
   publishAdminWeeklyGuide,
   saveAdminWeeklyGuide,
 } from "@/lib/api/admin-weekly-guides";
+import { ShareCoverPanel } from "@/components/admin/share-cover-panel";
 import { cn } from "@/lib/utils";
 import type { Activity } from "@/types/activity";
 import type {
@@ -458,6 +459,12 @@ export function PicksDesk({ data }: { data: AdminWeeklyGuide }) {
             </Button>
           ) : null}
         </div>
+
+        <ShareCoverPanel
+          weekStart={weekStart}
+          published={published}
+          dirty={dirty}
+        />
       </section>
     </div>
   );

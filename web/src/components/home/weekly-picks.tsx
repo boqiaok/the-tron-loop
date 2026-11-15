@@ -4,6 +4,7 @@ import { activityHref } from "@/components/activities/activity-row";
 import { ActivityThumb } from "@/components/activities/activity-thumb";
 import { CostPill } from "@/components/activities/cost-pill";
 import {
+  formatCount,
   formatDayLabel,
   formatTime,
   formatVenueShort,
@@ -31,10 +32,15 @@ export function WeeklyPicks({
       <div className="flex items-baseline justify-between gap-4 md:items-end">
         <div className="flex flex-col gap-1">
           <h2 id="picks-heading" className="text-lg md:text-[22px]">
-            This week’s{" "}
-            <span className="font-serif font-normal italic">
-              {guide.items.length} picks
-            </span>
+            <Link
+              href="/picks"
+              className="text-foreground hover:text-foreground hover:underline"
+            >
+              This week’s{" "}
+              <span className="font-serif font-normal italic">
+                {formatCount(guide.items.length, "pick")}
+              </span>
+            </Link>
           </h2>
           <span className="text-sm text-muted-foreground">
             {rangeLabel} · Chosen from {weekTotal} listings
@@ -66,7 +72,7 @@ export function WeeklyPicks({
   );
 }
 
-function PickCard({
+export function PickCard({
   item: { activity, kind, note },
   position,
 }: {
