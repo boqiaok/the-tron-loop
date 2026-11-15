@@ -46,9 +46,9 @@ export function getBackTarget(
   }
   if (date.recurrenceRule) {
     return {
-      href: "/whats-on?scope=regular",
-      label: "Back to regular activities",
-      shortLabel: "Regular",
+      href: "/whats-on?tier=regular",
+      label: "Back to every week",
+      shortLabel: "Every week",
     };
   }
   const start = new Date(date.startsAt);

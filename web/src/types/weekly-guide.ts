@@ -4,6 +4,8 @@ export type WeeklyGuideStatus = "draft" | "published";
 
 export interface WeeklyGuideItem {
   activity: Activity;
+  /** What the activity is in a few words, e.g. "Indie rock concert". */
+  kind: string | null;
   note: string | null;
 }
 
@@ -54,5 +56,5 @@ export interface AdminWeeklyGuide {
 
 export interface WeeklyGuideInput {
   intro: string | null;
-  items: Array<{ activityId: string; note: string | null }>;
+  items: Array<{ activityId: string; kind: string | null; note: string | null }>;
 }

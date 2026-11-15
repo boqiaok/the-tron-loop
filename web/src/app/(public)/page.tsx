@@ -5,7 +5,7 @@ import { EMPTY_FILTERS, narrowRange } from "@/lib/activities/filters";
 import {
   getActivities,
   getActivityCount,
-  getRegularActivities,
+  getActivityFilterOptions,
 } from "@/lib/api/activities";
 import { getWeeklyGuide } from "@/lib/api/weekly-guides";
 import { getWeekRange, getWeekSlug } from "@/lib/dates/week-range";
@@ -24,14 +24,12 @@ export default async function Home() {
   const nextWeek = getWeekRange(1);
   // Saturday and Sunday of this week, starting today once the weekend begins.
   const weekend = narrowRange(currentWeek, "weekend") ?? currentWeek;
-  const [weekendPage, weekTotal, nextWeekTotal, regular, guide] =
-    await Promise.all([
-      getActivities(weekend, EMPTY_FILTERS, { limit: 50 }),
-      getActivityCount(currentWeek),
-      getActivityCount(nextWeek),
-      getRegularActivities(),
-      getWeeklyGuide(getWeekSlug(currentWeek)),
-    ]);
+  const [weekendPage, options, nextWeekTotal, guide] = await Promise.all([
+    getActivities(weekend, { ...EMPTY_FILTERS, tier: "highlights" }, { limit: 50 }),
+    getActivityFilterOptions(currentWeek),
+    getActivityCount(nextWeek),
+    getWeeklyGuide(getWeekSlug(currentWeek)),
+  ]);
 
   return (
     <HomePage
@@ -42,10 +40,9 @@ export default async function Home() {
       }}
       guide={guide?.items.length ? guide : null}
       currentWeek={currentWeek}
-      weekTotal={weekTotal}
+      tiers={options.tiers}
       nextWeek={nextWeek}
       nextWeekTotal={nextWeekTotal}
-      regularTotal={regular.length}
     />
   );
 }

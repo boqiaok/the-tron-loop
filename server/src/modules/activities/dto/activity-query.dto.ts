@@ -21,6 +21,7 @@ import {
 import { ActivityCategory } from '../enums/activity-category.enum';
 import { ActivityCostType } from '../enums/activity-cost-type.enum';
 import { ActivityStatus } from '../enums/activity-status.enum';
+import { ListingTier } from '../listing-tier';
 
 class PaginationQueryDto {
   @ApiPropertyOptional({ default: 1, minimum: 1 })
@@ -157,6 +158,15 @@ export class ActivityPaginationQueryDto extends ActivityRangeQueryDto {
   @IsString()
   @MaxLength(120)
   suburb?: string;
+
+  @ApiPropertyOptional({
+    enum: ListingTier,
+    description:
+      'Only one-off highlights, weekly sessions or exhibitions, decided by the week around "from"; every listing when left out',
+  })
+  @IsOptional()
+  @IsEnum(ListingTier)
+  tier?: ListingTier;
 }
 
 export const ADMIN_ACTIVITY_MANUAL_SOURCE = 'manual';

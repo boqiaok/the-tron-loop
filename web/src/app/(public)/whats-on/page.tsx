@@ -14,6 +14,7 @@ import {
   getActivityFilterOptions,
   getRegularActivities,
 } from "@/lib/api/activities";
+import { getWeeklyGuide } from "@/lib/api/weekly-guides";
 
 export const dynamic = "force-dynamic";
 
@@ -24,22 +25,23 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const params = await searchParams;
   const scope = parseScope(params);
+  const { tier } = parseFilters(params);
   const week = Array.isArray(params.week) ? params.week[0] : params.week;
-  // Filters narrow the same listing, so only the scope and week are canonical.
-  const query = toSearchParams(scope, week, EMPTY_FILTERS).toString();
+  // Filters narrow the same listing, so only the scope, week and tier are canonical.
+  const query = toSearchParams(scope, week, { ...EMPTY_FILTERS, tier }).toString();
   const canonical = query ? `/whats-on?${query}` : "/whats-on";
 
-  return scope === "regular"
+  return tier === "regular"
     ? {
-        title: "Regular weekly activities",
+        title: "Every week in Hamilton",
         description:
-          "Weekly clubs, English conversation groups and classes around Hamilton.",
+          "Library sessions, clubs, English conversation groups and classes that run every week around Hamilton.",
         alternates: { canonical },
       }
     : {
         title: "What’s on",
         description:
-          "Browse this week, next week, regular and past activities around Hamilton.",
+          "Browse this week’s highlights, weekly sessions and exhibitions around Hamilton.",
         alternates: { canonical },
       };
 }
@@ -52,24 +54,15 @@ export default async function WhatsOnPage({
   const params = await searchParams;
   const scope = parseScope(params);
   const filters = parseFilters(params);
-
-  if (scope === "regular") {
-    const activities = await getRegularActivities();
-    return (
-      <WhatsOnExplorer
-        key="regular"
-        data={{ scope, activities }}
-        initialFilters={filters}
-      />
-    );
-  }
-
   const week = Array.isArray(params.week) ? params.week[0] : params.week;
   const { range, slug } = resolveWeek(scope, week);
   if (filters.when === "today" && scope !== "this-week") filters.when = undefined;
-  const [initialPage, options] = await Promise.all([
+  const [initialPage, options, recurring, picks] = await Promise.all([
     getActivities(range, filters),
     getActivityFilterOptions(range),
+    // Weekly-rule activities run every week, so they join the weekly sessions.
+    getRegularActivities(),
+    getWeeklyGuide(slug),
   ]);
 
   return (
@@ -82,6 +75,8 @@ export default async function WhatsOnPage({
         adjacent: getAdjacentWeeks(scope, slug),
         initialPage,
         options,
+        recurring,
+        pickIds: picks?.items.map((item) => item.activity.id) ?? [],
       }}
       initialFilters={filters}
     />

@@ -6,16 +6,14 @@ import {
   type WeekRange,
 } from "../dates/week-range";
 
-export type DatedScope = Exclude<WhatsOnScope, "regular">;
-
 export interface WeekTarget {
-  scope: DatedScope;
+  scope: WhatsOnScope;
   week?: string;
 }
 
-/** The week a dated scope shows. Past weeks fall back to last week. */
+/** The week a scope shows. Past weeks fall back to last week. */
 export function resolveWeek(
-  scope: DatedScope,
+  scope: WhatsOnScope,
   week: string | undefined,
   now: Date = new Date(),
 ): { range: WeekRange; slug: string } {
@@ -34,7 +32,7 @@ export function resolveWeek(
 
 /** Where the ‹ and › week arrows lead. Weeks after next are not published. */
 export function getAdjacentWeeks(
-  scope: DatedScope,
+  scope: WhatsOnScope,
   slug: string,
   now: Date = new Date(),
 ): { previous?: WeekTarget; next?: WeekTarget } {

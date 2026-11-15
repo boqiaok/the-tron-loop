@@ -9,6 +9,11 @@ import { readJson } from "@/lib/api/json";
 import { narrowRange, upcomingRange } from "@/lib/activities/filters";
 
 export const PAGE_SIZE = 30;
+/**
+ * The API's largest page. Weekly sessions and exhibitions fold several
+ * listings into one row, so those tiers load the whole week at once.
+ */
+const WHOLE_TIER_LIMIT = 100;
 
 export interface ActivityRange {
   from: string;
@@ -46,7 +51,11 @@ export function getActivities(
   filters: ActivityFilters,
   options: { signal?: AbortSignal; limit?: number } = {},
 ): Promise<PaginatedActivities> {
-  const limit = options.limit ?? PAGE_SIZE;
+  const limit =
+    options.limit ??
+    (filters.tier === "regular" || filters.tier === "exhibitions"
+      ? WHOLE_TIER_LIMIT
+      : PAGE_SIZE);
   const narrowed = narrowRange(range, filters.when);
   if (!narrowed) return Promise.resolve(EMPTY_PAGE(limit));
 
@@ -65,6 +74,7 @@ export function getActivities(
   if (filters.categories.length)
     searchParams.set("categories", filters.categories.join(","));
   if (filters.suburb) searchParams.set("suburb", filters.suburb);
+  if (filters.tier) searchParams.set("tier", filters.tier);
   if (filters.latitude !== undefined)
     searchParams.set("latitude", String(filters.latitude));
   if (filters.longitude !== undefined)

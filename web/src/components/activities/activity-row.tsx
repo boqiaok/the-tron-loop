@@ -1,3 +1,4 @@
+import { Star } from "lucide-react";
 import Link from "next/link";
 
 import { ActivityThumb } from "@/components/activities/activity-thumb";
@@ -27,9 +28,12 @@ import { cn } from "@/lib/utils";
 export function ActivityRow({
   occurrence,
   recurring = false,
+  picked = false,
 }: {
   occurrence: Occurrence;
   recurring?: boolean;
+  /** One of the editor's picks for the week. */
+  picked?: boolean;
 }) {
   const { activity, date, series } = occurrence;
   const sessions = occurrence.sessions ?? [date];
@@ -93,6 +97,12 @@ export function ActivityRow({
             )}
           >
             {activity.title}
+            {picked && !cancelled ? (
+              <span className="ml-2 inline-flex translate-y-[-1px] items-center gap-1 rounded-full bg-action px-2 py-0.5 align-middle text-[11px] font-semibold tracking-normal text-white">
+                <Star aria-hidden="true" className="size-2.5 fill-current" />
+                Pick
+              </span>
+            ) : null}
           </span>
           {summary ? (
             <span className="line-clamp-2 text-xs leading-[1.45] text-body md:line-clamp-none md:truncate md:text-[13px]">

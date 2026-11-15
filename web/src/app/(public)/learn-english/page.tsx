@@ -68,8 +68,8 @@ export default async function LearnEnglishPage() {
             Let me know
           </Link>
           , or browse{" "}
-          <Link href="/whats-on?scope=regular" className="font-medium text-action">
-            all regular activities
+          <Link href="/whats-on?tier=regular" className="font-medium text-action">
+            every weekly session
           </Link>
           .
         </p>

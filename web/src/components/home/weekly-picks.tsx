@@ -9,6 +9,7 @@ import {
   formatVenueShort,
   getCostLabel,
 } from "@/lib/activities/format";
+import { getPickReason } from "@/lib/activities/pick-reason";
 import { cn } from "@/lib/utils";
 import type { WeeklyGuide, WeeklyGuideItem } from "@/types/weekly-guide";
 
@@ -43,10 +44,8 @@ export function WeeklyPicks({
           href="/whats-on"
           className="text-sm font-medium whitespace-nowrap text-action md:text-[15px]"
         >
-          <span className="md:hidden">See all {weekTotal}</span>
-          <span className="hidden md:inline">
-            See all {weekTotal} this week →
-          </span>
+          <span className="md:hidden">Highlights</span>
+          <span className="hidden md:inline">See all highlights →</span>
         </Link>
       </div>
 
@@ -68,7 +67,7 @@ export function WeeklyPicks({
 }
 
 function PickCard({
-  item: { activity, note },
+  item: { activity, kind, note },
   position,
 }: {
   item: WeeklyGuideItem;
@@ -78,6 +77,7 @@ function PickCard({
   const cancelled = activity.status === "cancelled";
   const cost = getCostLabel(activity);
   const venue = formatVenueShort(activity);
+  const reason = getPickReason(activity);
   const when = date
     ? `${formatDayLabel(date.startsAt)} · ${date.isAllDay ? "All day" : formatTime(date.startsAt)}`
     : null;
@@ -108,9 +108,21 @@ function PickCard({
             >
               {activity.title}
             </span>
+            {kind ? (
+              <span className="text-[13px] font-medium text-accent-foreground md:text-sm">
+                {kind}
+              </span>
+            ) : null}
             <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-meta md:text-[13px]">
               {when ? <span>{when}</span> : null}
               {venue ? <span>{venue}</span> : null}
+            </span>
+            <span className="flex flex-wrap items-center gap-1.5">
+              {reason && !cancelled ? (
+                <span className="rounded-full bg-accent px-2.5 py-1 text-xs font-semibold whitespace-nowrap text-accent-foreground">
+                  {reason}
+                </span>
+              ) : null}
               {cancelled ? (
                 <span className="rounded-full bg-cancelled px-2 py-0.5 text-[11px] font-semibold text-cancelled-foreground">
                   Cancelled

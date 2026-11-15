@@ -25,13 +25,14 @@ export function WeekendPicks({
   range,
   rangeLabel,
   weekendTotal,
-  weekTotal,
+  highlightsTotal,
 }: {
   activities: Activity[];
   weekendTotal: number;
   range: { from: string; to: string };
   rangeLabel: string;
-  weekTotal: number;
+  /** One-off listings this week, which the What's on page opens on. */
+  highlightsTotal: number;
 }) {
   const [chip, setChip] = useState<Chip>("all");
   const [activities, setActivities] = useState(initialActivities);
@@ -48,7 +49,7 @@ export function WeekendPicks({
     if (!coordinates) return;
     const page = await getActivities(
       range,
-      { ...EMPTY_FILTERS, sortBy: "distance", ...coordinates },
+      { ...EMPTY_FILTERS, tier: "highlights", sortBy: "distance", ...coordinates },
       { limit: 50 },
     ).catch(() => undefined);
     if (!page) return;
@@ -85,8 +86,10 @@ export function WeekendPicks({
           href="/whats-on"
           className="text-sm font-medium whitespace-nowrap text-action md:text-[15px]"
         >
-          <span className="md:hidden">See all {weekTotal}</span>
-          <span className="hidden md:inline">See all {weekTotal} this week →</span>
+          <span className="md:hidden">See all {highlightsTotal}</span>
+          <span className="hidden md:inline">
+            See all {highlightsTotal} highlights →
+          </span>
         </Link>
       </div>
 

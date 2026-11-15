@@ -17,8 +17,6 @@ export interface FilterRailProps {
   scope: WhatsOnScope;
   filters: ActivityFilters;
   options?: ActivityFilterOptions;
-  /** Regular activities are filtered by topic instead of category. */
-  topics?: Array<{ slug: string; name: string; count: number }>;
   onChange: (patch: Partial<ActivityFilters>) => void;
   location: {
     active: boolean;
@@ -39,22 +37,12 @@ export function FilterRail({
   scope,
   filters,
   options,
-  topics,
   onChange,
   location,
 }: FilterRailProps) {
   const counts = new Map(
     options?.categories.map((item) => [item.category, item.count]) ?? [],
   );
-  const isRegular = scope === "regular";
-
-  function toggleTopic(slug: string) {
-    onChange({
-      topics: filters.topics.includes(slug)
-        ? filters.topics.filter((value) => value !== slug)
-        : [...filters.topics, slug],
-    });
-  }
 
   function toggleCategory(category: ActivityCategory) {
     onChange({
@@ -66,33 +54,19 @@ export function FilterRail({
 
   return (
     <div className="flex flex-col gap-[22px]">
-      <RailGroup label={isRegular ? "Topic" : "Category"}>
+      <RailGroup label="Category">
         <div className="flex flex-col gap-[7px] text-sm text-secondary-foreground">
-          {isRegular
-            ? topics?.map((topic) => (
-                <RailCheckbox
-                  key={topic.slug}
-                  checked={filters.topics.includes(topic.slug)}
-                  onChange={() => toggleTopic(topic.slug)}
-                  count={topic.count}
-                >
-                  {topic.name}
-                </RailCheckbox>
-              ))
-            : CATEGORIES.map((category) => (
-                <RailCheckbox
-                  key={category.value}
-                  checked={filters.categories.includes(category.value)}
-                  onChange={() => toggleCategory(category.value)}
-                  count={options ? (counts.get(category.value) ?? 0) : undefined}
-                >
-                  <CategoryDot
-                    color={category.color}
-                    className="size-2 md:size-2"
-                  />
-                  {category.label}
-                </RailCheckbox>
-              ))}
+          {CATEGORIES.map((category) => (
+            <RailCheckbox
+              key={category.value}
+              checked={filters.categories.includes(category.value)}
+              onChange={() => toggleCategory(category.value)}
+              count={options ? (counts.get(category.value) ?? 0) : undefined}
+            >
+              <CategoryDot color={category.color} className="size-2 md:size-2" />
+              {category.label}
+            </RailCheckbox>
+          ))}
         </div>
       </RailGroup>
 
@@ -117,8 +91,7 @@ export function FilterRail({
         </div>
       </RailGroup>
 
-      {!isRegular ? (
-        <RailGroup label="When">
+      <RailGroup label="When">
           <div className="flex flex-wrap gap-1.5">
             {WHEN_OPTIONS.filter(
               (option) => option.value !== "today" || scope === "this-week",
@@ -138,9 +111,7 @@ export function FilterRail({
             ))}
           </div>
         </RailGroup>
-      ) : null}
 
-      {!isRegular ? (
         <RailGroup label="Where">
           {options?.suburbs.length ? (
             <label className="relative block">
@@ -179,9 +150,8 @@ export function FilterRail({
             <p className="text-xs text-cancelled-foreground">{location.error}</p>
           ) : null}
         </RailGroup>
-      ) : null}
 
-      {!isRegular && options ? (
+      {options ? (
         <div className="flex flex-col gap-2 border-t pt-4">
           {filters.includeCancelled ? (
             <>

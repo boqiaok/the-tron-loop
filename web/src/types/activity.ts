@@ -75,10 +75,21 @@ export interface PaginatedActivities {
   totalPages: number;
 }
 
+/** How the week's listings are split for browsing. */
+export type ListingTier = "highlights" | "regular" | "exhibitions";
+
 export interface ActivityFilterOptions {
   categories: Array<{ category: ActivityCategory; count: number }>;
   suburbs: string[];
   cancelledCount: number;
+  tiers: {
+    highlights: number;
+    /** Dated sessions that come back every week. */
+    regular: number;
+    exhibitions: number;
+    /** Activities with a weekly rule, listed with the weekly sessions. */
+    recurring: number;
+  };
 }
 
 export type WhenFilter = "today" | "weekend" | "evening";
@@ -91,8 +102,8 @@ export interface ActivityFilters {
   includeCancelled: boolean;
   costType?: Exclude<ActivityCostType, "unknown">;
   categories: ActivityCategory[];
-  /** Tag slugs; only the Regular page filters by topic. */
-  topics: string[];
+  /** Left out for every listing in the week. */
+  tier?: ListingTier;
   when?: WhenFilter;
   suburb?: string;
   page: number;

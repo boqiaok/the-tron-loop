@@ -45,7 +45,7 @@ export function isEveningStart(value: string): boolean {
   return Number(hourFormatter.format(new Date(value))) >= 17;
 }
 
-function seriesKey(activity: Activity): string {
+export function seriesKey(activity: Pick<Activity, "title" | "category">): string {
   const title = activity.title.trim().replace(/\s+/g, " ").toLowerCase();
   return `${activity.category}:${title}`;
 }
@@ -209,6 +209,27 @@ function parseRule(rule: string | null): Map<string, string> {
   );
 }
 
+/**
+ * The weekdays a recurring date repeats on, Monday first (0) to Sunday (6),
+ * from its rule or, without a BYDAY part, the weekday it starts on.
+ */
+export function getRecurringWeekdays(
+  date: Pick<ActivityDate, "startsAt" | "recurrenceRule">,
+): number[] {
+  const byDay = parseRule(date.recurrenceRule).get("BYDAY");
+  const days = byDay ? byDay.split(",").map((code) => code.slice(-2)) : [];
+  const indexes = days.length
+    ? days
+        .map((code) => WEEKDAYS.findIndex(([value]) => value === code))
+        .filter((index) => index >= 0)
+    : [
+        WEEKDAYS.findIndex(
+          ([, label]) => label === weekdayFormatter.format(new Date(date.startsAt)),
+        ),
+      ];
+  return [...new Set(indexes)].sort((left, right) => left - right);
+}
+
 /** Groups recurring activities under the weekdays they repeat on. */
 export function groupByWeekday(activities: Activity[]): OccurrenceGroup[] {
   const groups = WEEKDAYS.map(([, label]) => ({
@@ -219,21 +240,7 @@ export function groupByWeekday(activities: Activity[]): OccurrenceGroup[] {
 
   for (const activity of activities) {
     for (const date of activity.dates) {
-      const byDay = parseRule(date.recurrenceRule).get("BYDAY");
-      const days = byDay
-        ? byDay.split(",").map((code) => code.slice(-2))
-        : [];
-      const indexes = days.length
-        ? days
-            .map((code) => WEEKDAYS.findIndex(([value]) => value === code))
-            .filter((index) => index >= 0)
-        : [
-            WEEKDAYS.findIndex(
-              ([, label]) =>
-                label === weekdayFormatter.format(new Date(date.startsAt)),
-            ),
-          ];
-      for (const index of new Set(indexes)) {
+      for (const index of getRecurringWeekdays(date)) {
         groups[index]?.occurrences.push({ activity, date });
       }
     }

@@ -17,6 +17,18 @@ export class WeeklyGuideItemInputDto {
   @IsUUID()
   activityId!: string;
 
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    maxLength: 60,
+    description: 'What the activity is, in a few words',
+    example: 'Indie rock concert',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  kind?: string | null;
+
   @ApiPropertyOptional({ type: String, nullable: true, maxLength: 280 })
   @IsOptional()
   @IsString()

@@ -49,7 +49,7 @@ describe("getBackTarget", () => {
     );
     expect(
       getBackTarget({ startsAt: "2026-09-26T01:00:00Z", recurrenceRule: "FREQ=WEEKLY" }, NOW).label,
-    ).toBe("Back to regular activities");
+    ).toBe("Back to every week");
   });
 });
 

@@ -14,6 +14,12 @@ import {
   SelectQueryBuilder,
 } from 'typeorm';
 import { NOT_REGULAR_ACTIVITY } from './activity-recurrence';
+import {
+  classifyListingTiers,
+  getListingWeek,
+  HISTORY_WEEKS,
+  ListingTier,
+} from './listing-tier';
 import { createSlug, MAX_SLUG_LENGTH } from './activity-slug';
 import { toActivityResponse, toAdminActivityResponse } from './activity.mapper';
 import { isPostgresUniqueViolation } from './database-error';
@@ -206,6 +212,22 @@ export class ActivitiesService {
     }
 
     const baseQuery = this.createPublicQuery(query, from, to);
+    if (query.tier) {
+      const tiers = await this.classifyWeek(from);
+      const tierIds = [...tiers.listings]
+        .filter(([, tier]) => tier === query.tier)
+        .map(([id]) => id);
+      if (!tierIds.length) {
+        return {
+          items: [],
+          page: query.page,
+          limit: query.limit,
+          total: 0,
+          totalPages: 0,
+        };
+      }
+      baseQuery.andWhere('activity.id IN (:...tierIds)', { tierIds });
+    }
     const countResult = await baseQuery
       .clone()
       .select('COUNT(DISTINCT activity.id)', 'total')
@@ -305,35 +327,56 @@ export class ActivitiesService {
           { from, to },
         )
         .where(NOT_REGULAR_ACTIVITY);
-    const [categoryRows, suburbs, cancelled] = await Promise.all([
-      inRange()
-        .andWhere('activity.status = :published', {
-          published: ActivityStatus.Published,
-        })
-        .select('activity.category', 'category')
-        .addSelect('COUNT(DISTINCT activity.id)', 'count')
-        .groupBy('activity.category')
-        .getRawMany<{ category: ActivityCategory; count: string }>(),
-      inRange()
-        .innerJoin('activity.venue', 'venue')
-        .andWhere('activity.status = :published', {
-          published: ActivityStatus.Published,
-        })
-        .andWhere('venue.suburb IS NOT NULL')
-        .select('venue.suburb', 'suburb')
-        .distinct(true)
-        .orderBy('venue.suburb', 'ASC')
-        .getRawMany<{ suburb: string }>(),
-      inRange()
-        .andWhere('activity.status = :cancelled', {
-          cancelled: ActivityStatus.Cancelled,
-        })
-        .select('COUNT(DISTINCT activity.id)', 'count')
-        .getRawOne<{ count: string }>(),
-    ]);
+    const [categoryRows, suburbs, cancelled, week, recurring] =
+      await Promise.all([
+        inRange()
+          .andWhere('activity.status = :published', {
+            published: ActivityStatus.Published,
+          })
+          .select('activity.category', 'category')
+          .addSelect('COUNT(DISTINCT activity.id)', 'count')
+          .groupBy('activity.category')
+          .getRawMany<{ category: ActivityCategory; count: string }>(),
+        inRange()
+          .innerJoin('activity.venue', 'venue')
+          .andWhere('activity.status = :published', {
+            published: ActivityStatus.Published,
+          })
+          .andWhere('venue.suburb IS NOT NULL')
+          .select('venue.suburb', 'suburb')
+          .distinct(true)
+          .orderBy('venue.suburb', 'ASC')
+          .getRawMany<{ suburb: string }>(),
+        inRange()
+          .andWhere('activity.status = :cancelled', {
+            cancelled: ActivityStatus.Cancelled,
+          })
+          .select('COUNT(DISTINCT activity.id)', 'count')
+          .getRawOne<{ count: string }>(),
+        this.classifyWeek(from),
+        this.activitiesRepository
+          .createQueryBuilder('activity')
+          .innerJoin('activity.dates', 'recurringDate')
+          .where('activity.status = :published', {
+            published: ActivityStatus.Published,
+          })
+          .andWhere('recurringDate.recurrenceRule IS NOT NULL')
+          .select('COUNT(DISTINCT activity.id)', 'count')
+          .getRawOne<{ count: string }>(),
+      ]);
     const counts = new Map(
       categoryRows.map(({ category, count }) => [category, Number(count)]),
     );
+    const tiers = { highlights: 0, regular: 0, exhibitions: 0 };
+    for (const [id, tier] of week.listings) {
+      // Only listings with a session in the range, as the listing itself does.
+      const inRangeSession = week.startTimes
+        .get(id)
+        ?.some((time) => time >= from && time < to);
+      if (week.published.has(id) && inRangeSession) {
+        tiers[tier] += 1;
+      }
+    }
 
     return {
       categories: Object.values(ActivityCategory).map((category) => ({
@@ -342,6 +385,79 @@ export class ActivitiesService {
       })),
       suburbs: suburbs.map(({ suburb }) => suburb),
       cancelledCount: Number(cancelled?.count ?? 0),
+      tiers: { ...tiers, recurring: Number(recurring?.count ?? 0) },
+    };
+  }
+
+  /**
+   * Classifies the public listings of the local week around an instant, so a
+   * narrower range such as the weekend keeps each activity in the same tier.
+   */
+  private async classifyWeek(instant: Date): Promise<{
+    listings: Map<string, ListingTier>;
+    published: Set<string>;
+    /** Each listing's session starts in the week. */
+    startTimes: Map<string, Date[]>;
+  }> {
+    const week = getListingWeek(instant);
+    const historyFrom = new Date(
+      week.from.getTime() - HISTORY_WEEKS * 7 * 24 * 60 * 60 * 1000,
+    );
+    const publicStatuses = [ActivityStatus.Published, ActivityStatus.Cancelled];
+    const sessions = (rangeFrom: Date, rangeTo: Date) =>
+      this.activitiesRepository
+        .createQueryBuilder('activity')
+        .innerJoin('activity.dates', 'tierDate')
+        .where('activity.status IN (:...publicStatuses)', { publicStatuses })
+        .andWhere(NOT_REGULAR_ACTIVITY)
+        .andWhere('tierDate.startsAt >= :rangeFrom', { rangeFrom })
+        .andWhere('tierDate.startsAt < :rangeTo', { rangeTo })
+        .select('activity.id', 'id')
+        .addSelect('activity.title', 'title')
+        .addSelect('activity.category', 'category')
+        .addSelect('activity.venueId', 'venueId')
+        .addSelect('activity.status', 'status')
+        .addSelect('tierDate.startsAt', 'startsAt')
+        .getRawMany<{
+          id: string;
+          title: string;
+          category: ActivityCategory;
+          venueId: string | null;
+          status: ActivityStatus;
+          startsAt: Date;
+        }>();
+    const [current, history] = await Promise.all([
+      sessions(week.from, week.to),
+      sessions(historyFrom, week.from),
+    ]);
+
+    const listings = new Map<
+      string,
+      (typeof current)[number] & { startTimes: Date[] }
+    >();
+    for (const row of current) {
+      const listing = listings.get(row.id) ?? { ...row, startTimes: [] };
+      listing.startTimes.push(new Date(row.startsAt));
+      listings.set(row.id, listing);
+    }
+
+    return {
+      listings: classifyListingTiers(
+        [...listings.values()],
+        history.map((row) => ({ ...row, startsAt: new Date(row.startsAt) })),
+        week.from,
+      ),
+      published: new Set(
+        [...listings.values()]
+          .filter((listing) => listing.status === ActivityStatus.Published)
+          .map((listing) => listing.id),
+      ),
+      startTimes: new Map(
+        [...listings.values()].map((listing) => [
+          listing.id,
+          listing.startTimes,
+        ]),
+      ),
     };
   }
 

@@ -110,6 +110,7 @@ export class WeeklyGuidesService {
             guideId: saved.id,
             activityId: item.activityId,
             position: index + 1,
+            kind: item.kind?.trim() || null,
             note: item.note?.trim() || null,
           }),
         ),
@@ -315,6 +316,7 @@ function toGuideResponse(
       .filter((item) => isVisible(item.activity))
       .map((item) => ({
         activity: toActivityResponse(item.activity, week),
+        kind: item.kind,
         note: item.note,
       })),
   };

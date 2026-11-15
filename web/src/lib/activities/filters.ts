@@ -6,10 +6,11 @@ import { ACTIVITY_TIME_ZONE } from "../dates/week-range";
 import type {
   ActivityCategory,
   ActivityFilters,
+  ListingTier,
   WhenFilter,
 } from "@/types/activity";
 
-export type WhatsOnScope = "this-week" | "next-week" | "regular" | "past";
+export type WhatsOnScope = "this-week" | "next-week" | "past";
 
 export const WHATS_ON_SCOPES: Array<{
   value: WhatsOnScope;
@@ -18,9 +19,18 @@ export const WHATS_ON_SCOPES: Array<{
 }> = [
   { value: "this-week", label: "This week", shortLabel: "This week" },
   { value: "next-week", label: "Next week", shortLabel: "Next week" },
-  { value: "regular", label: "Regular", shortLabel: "Regular" },
   { value: "past", label: "Past weeks", shortLabel: "Past" },
 ];
+
+/** The tabs that split a week's listings; Highlights opens by default. */
+export const LISTING_TIERS: Array<{ value: ListingTier | undefined; label: string }> = [
+  { value: "highlights", label: "Highlights" },
+  { value: "regular", label: "Every week" },
+  { value: "exhibitions", label: "Exhibitions" },
+  { value: undefined, label: "Everything" },
+];
+
+export const DEFAULT_TIER: ListingTier = "highlights";
 
 export type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -30,7 +40,6 @@ export const EMPTY_FILTERS: ActivityFilters = {
   sortBy: "date",
   includeCancelled: false,
   categories: [],
-  topics: [],
   page: 1,
 };
 
@@ -61,17 +70,17 @@ export function parseFilters(searchParams: SearchParams): ActivityFilters {
     includeCancelled: single(searchParams.cancelled) === "show",
     costType: cost === "free" || cost === "paid" ? cost : undefined,
     categories: [...new Set<ActivityCategory>(categories)],
-    topics: [
-      ...new Set(
-        (single(searchParams.topic) ?? "")
-          .split(",")
-          .filter((topic) => topic && topic.length <= 100),
-      ),
-    ],
+    tier: parseTier(single(searchParams.tier)),
     when: WHEN_VALUES.has(when as WhenFilter) ? (when as WhenFilter) : undefined,
     suburb: suburb && suburb.length <= 120 ? suburb : undefined,
     page: 1,
   };
+}
+
+function parseTier(value: string | undefined): ListingTier | undefined {
+  if (value === "all") return undefined;
+  return LISTING_TIERS.find((tier) => tier.value && tier.value === value)
+    ?.value ?? DEFAULT_TIER;
 }
 
 export function toSearchParams(
@@ -85,7 +94,7 @@ export function toSearchParams(
   if (filters.q) params.set("q", filters.q);
   if (filters.categories.length)
     params.set("category", filters.categories.join(","));
-  if (filters.topics.length) params.set("topic", filters.topics.join(","));
+  if (filters.tier !== DEFAULT_TIER) params.set("tier", filters.tier ?? "all");
   if (filters.costType) params.set("cost", filters.costType);
   if (filters.when) params.set("when", filters.when);
   if (filters.suburb) params.set("suburb", filters.suburb);
@@ -96,7 +105,6 @@ export function toSearchParams(
 export function countActiveFilters(filters: ActivityFilters): number {
   return (
     filters.categories.length +
-    filters.topics.length +
     (filters.costType ? 1 : 0) +
     (filters.when ? 1 : 0) +
     (filters.suburb ? 1 : 0)

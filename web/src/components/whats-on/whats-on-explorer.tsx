@@ -6,16 +6,23 @@ import { useEffect, useMemo, useState } from "react";
 
 import { OccurrenceList } from "@/components/activities/occurrence-list";
 import { useCurrentLocation } from "@/components/activities/use-current-location";
+import { ExhibitionGrid } from "@/components/whats-on/exhibition-grid";
 import { FilterRail } from "@/components/whats-on/filter-rail";
+import { WeeklySessionsList } from "@/components/whats-on/weekly-sessions-list";
 import { getCategory } from "@/lib/activities/category";
 import {
   countActiveFilters,
+  LISTING_TIERS,
   toSearchParams,
   WHATS_ON_SCOPES,
   type WhatsOnScope,
 } from "@/lib/activities/filters";
 import { formatCount, formatShortRange } from "@/lib/activities/format";
-import { groupByDay, groupByWeekday } from "@/lib/activities/occurrences";
+import { groupByDay } from "@/lib/activities/occurrences";
+import {
+  filterRecurring,
+  groupWeeklySessions,
+} from "@/lib/activities/weekly-sessions";
 import type { WeekTarget } from "@/lib/activities/whats-on-week";
 import { getActivities, PAGE_SIZE } from "@/lib/api/activities";
 import type { WeekRange } from "@/lib/dates/week-range";
@@ -24,19 +31,22 @@ import type {
   Activity,
   ActivityFilterOptions,
   ActivityFilters,
+  ListingTier,
   PaginatedActivities,
 } from "@/types/activity";
 
-type WhatsOnData =
-  | {
-      scope: Exclude<WhatsOnScope, "regular">;
-      week: string;
-      range: WeekRange;
-      adjacent: { previous?: WeekTarget; next?: WeekTarget };
-      initialPage: PaginatedActivities;
-      options: ActivityFilterOptions;
-    }
-  | { scope: "regular"; activities: Activity[] };
+interface WhatsOnData {
+  scope: WhatsOnScope;
+  week: string;
+  range: WeekRange;
+  adjacent: { previous?: WeekTarget; next?: WeekTarget };
+  initialPage: PaginatedActivities;
+  options: ActivityFilterOptions;
+  /** Weekly-rule activities, shown with the week's weekly sessions. */
+  recurring: Activity[];
+  /** The editor's picks for the week. */
+  pickIds: string[];
+}
 
 export function WhatsOnExplorer({
   data,
@@ -46,25 +56,26 @@ export function WhatsOnExplorer({
   initialFilters: ActivityFilters;
 }) {
   const [filters, setFilters] = useState(initialFilters);
-  const [page, setPage] = useState(
-    data.scope === "regular" ? undefined : data.initialPage,
-  );
+  const [page, setPage] = useState(data.initialPage);
+  // The tier the loaded page belongs to, so a tab switch keeps the old layout
+  // until the new listings arrive.
+  const [pageTier, setPageTier] = useState(initialFilters.tier);
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreError, setMoreError] = useState<string>();
   const [sheetOpen, setSheetOpen] = useState(false);
   const location = useCurrentLocation();
   const debouncedQuery = useDebouncedValue(filters.q ?? "", 300);
-  const week = data.scope === "regular" ? undefined : data.week;
-  const range = data.scope === "regular" ? undefined : data.range;
+  const { week, range } = data;
+  const pickIds = useMemo(() => new Set(data.pickIds), [data.pickIds]);
 
-  const { categories, costType, includeCancelled, sortBy, suburb, topics, when } =
+  const { categories, costType, includeCancelled, sortBy, suburb, tier, when } =
     filters;
   const coordinates = location.coordinates;
   const requestFilters = useMemo<ActivityFilters>(
     () => ({
       q: debouncedQuery || undefined,
       categories,
-      topics,
+      tier,
       costType,
       includeCancelled,
       suburb,
@@ -82,7 +93,7 @@ export function WhatsOnExplorer({
       includeCancelled,
       sortBy,
       suburb,
-      topics,
+      tier,
       when,
     ],
   );
@@ -92,7 +103,7 @@ export function WhatsOnExplorer({
   const [loaded, setLoaded] = useState<{ key: string; error?: string }>({
     key: requestKey,
   });
-  const loading = Boolean(range) && loaded.key !== requestKey;
+  const loading = loaded.key !== requestKey;
   const error = loaded.key === requestKey ? (loaded.error ?? moreError) : undefined;
 
   useEffect(() => {
@@ -101,11 +112,12 @@ export function WhatsOnExplorer({
   }, [data.scope, requestFilters, week]);
 
   useEffect(() => {
-    if (!range || loaded.key === requestKey) return;
+    if (loaded.key === requestKey) return;
     const controller = new AbortController();
     getActivities(range, requestFilters, { signal: controller.signal })
       .then((next) => {
         setPage(next);
+        setPageTier(requestFilters.tier);
         setLoaded({ key: requestKey });
       })
       .catch((caught: unknown) => {
@@ -124,7 +136,7 @@ export function WhatsOnExplorer({
   }
 
   async function loadMore() {
-    if (!range || !page) return;
+    if (!page) return;
     setLoadingMore(true);
     setMoreError(undefined);
     try {
@@ -154,18 +166,32 @@ export function WhatsOnExplorer({
     update({ sortBy: "date" });
   }
 
-  const regular =
-    data.scope === "regular" ? filterRegular(data.activities, filters) : [];
-  const groups =
-    data.scope === "regular"
-      ? groupByWeekday(regular)
-      : groupByDay(page?.items ?? [], {
+  const recurring =
+    pageTier === "regular" ? filterRecurring(data.recurring, filters) : [];
+  const items = page.items;
+  const total = page.total + recurring.length;
+  const remaining = Math.max(0, page.total - items.length);
+  const tierCounts = data.options.tiers;
+  const tierCount = (value: ListingTier | undefined) =>
+    value === "regular"
+      ? tierCounts.regular + tierCounts.recurring
+      : value
+        ? tierCounts[value]
+        : tierCounts.highlights + tierCounts.regular + tierCounts.exhibitions;
+  const listing =
+    pageTier === "regular" ? (
+      <WeeklySessionsList groups={groupWeeklySessions(items, recurring)} />
+    ) : pageTier === "exhibitions" ? (
+      <ExhibitionGrid activities={items} />
+    ) : (
+      <OccurrenceList
+        groups={groupByDay(items, {
           keepOrder: requestFilters.sortBy === "distance",
           eveningOnly: filters.when === "evening",
-        });
-  const total = data.scope === "regular" ? regular.length : (page?.total ?? 0);
-  const shown = page?.items.length ?? 0;
-  const remaining = Math.max(0, total - shown);
+        })}
+        pickIds={pickIds}
+      />
+    );
   const activeCount = countActiveFilters(filters);
   const summary = describeFilters(filters);
   const hrefFor = (target: { scope: WhatsOnScope; week?: string }) => {
@@ -182,8 +208,7 @@ export function WhatsOnExplorer({
     <FilterRail
       scope={data.scope}
       filters={filters}
-      options={data.scope === "regular" ? undefined : data.options}
-      topics={data.scope === "regular" ? listTopics(data.activities) : undefined}
+      options={data.options}
       onChange={update}
       location={{
         active: Boolean(location.coordinates),
@@ -225,8 +250,7 @@ export function WhatsOnExplorer({
                 );
               })}
             </nav>
-            {data.scope !== "regular" ? (
-              <div className="flex shrink-0 items-center gap-2.5">
+            <div className="flex shrink-0 items-center gap-2.5">
                 <span className="text-sm text-meta">
                   {formatShortRange(data.range)}
                 </span>
@@ -249,8 +273,33 @@ export function WhatsOnExplorer({
                   ›
                 </WeekArrow>
               </div>
-            ) : null}
           </div>
+
+          <nav
+            aria-label="Listing type"
+            className="-mx-[18px] flex overflow-x-auto border-b border-line px-[18px] [scrollbar-width:none] md:mx-0 md:px-0"
+          >
+            {LISTING_TIERS.map((item) => {
+              const active = item.value === tier;
+              return (
+                <button
+                  key={item.label}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => update({ tier: item.value })}
+                  className={cn(
+                    "-mb-px shrink-0 border-b-2 px-3 py-2.5 text-sm whitespace-nowrap md:px-4 md:text-[15px]",
+                    active
+                      ? "border-primary font-semibold text-foreground"
+                      : "border-transparent text-secondary-foreground hover:text-foreground",
+                  )}
+                >
+                  {item.label}{" "}
+                  <span className="font-normal text-meta">{tierCount(item.value)}</span>
+                </button>
+              );
+            })}
+          </nav>
 
           <div className="flex items-center gap-2 md:gap-3">
             <label className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-[11px] border border-line bg-field px-3.5 focus-within:ring-3 focus-within:ring-ring/30 md:h-11 md:gap-2.5 md:rounded-[12px] md:px-4">
@@ -264,7 +313,7 @@ export function WhatsOnExplorer({
                 className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground md:text-[15px]"
               />
             </label>
-            {data.scope !== "regular" ? (
+            {tier !== "regular" && tier !== "exhibitions" ? (
               <label className="relative hidden h-11 items-center rounded-[12px] border border-line text-sm text-secondary-foreground focus-within:ring-3 focus-within:ring-ring/30 md:flex">
                 <span className="pointer-events-none absolute left-4">Sort:</span>
                 <select
@@ -331,7 +380,7 @@ export function WhatsOnExplorer({
             ) : null}
           </div>
 
-          {data.scope === "regular" ? (
+          {tier === "regular" ? (
             <Link
               href="/learn-english"
               className="mb-1.5 rounded-[12px] border border-line bg-card px-4 py-3 text-sm text-secondary-foreground hover:no-underline"
@@ -350,8 +399,8 @@ export function WhatsOnExplorer({
           ) : null}
 
           <div className={cn("transition-opacity", loading && "opacity-50")}>
-            {groups.length ? (
-              <OccurrenceList groups={groups} recurring={data.scope === "regular"} />
+            {items.length || recurring.length ? (
+              listing
             ) : (
               <EmptyState
                 filtered={activeCount > 0 || Boolean(filters.q)}
@@ -360,7 +409,7 @@ export function WhatsOnExplorer({
             )}
           </div>
 
-          {data.scope !== "regular" && remaining > 0 && !loading ? (
+          {remaining > 0 && !loading ? (
             <div className="flex justify-center pt-3.5">
               <button
                 type="button"
@@ -515,7 +564,6 @@ function EmptyState({
 function clearedFilters(filters: ActivityFilters): Partial<ActivityFilters> {
   return {
     categories: [],
-    topics: [],
     costType: undefined,
     when: undefined,
     suburb: undefined,
@@ -526,7 +574,6 @@ function clearedFilters(filters: ActivityFilters): Partial<ActivityFilters> {
 function describeFilters(filters: ActivityFilters): string {
   return [
     ...filters.categories.map((category) => getCategory(category).label),
-    ...filters.topics,
     filters.costType === "free" ? "Free" : filters.costType === "paid" ? "Paid" : null,
     filters.when === "today"
       ? "Today"
@@ -539,44 +586,6 @@ function describeFilters(filters: ActivityFilters): string {
   ]
     .filter(Boolean)
     .join(", ");
-}
-
-/** The tags used by regular activities, most common first. */
-function listTopics(activities: Activity[]) {
-  const topics = new Map<string, { slug: string; name: string; count: number }>();
-  for (const { tags } of activities) {
-    for (const tag of tags) {
-      const topic = topics.get(tag.slug) ?? {
-        slug: tag.slug,
-        name: tag.name,
-        count: 0,
-      };
-      topic.count += 1;
-      topics.set(tag.slug, topic);
-    }
-  }
-  return [...topics.values()].sort(
-    (a, b) => b.count - a.count || a.name.localeCompare(b.name),
-  );
-}
-
-function filterRegular(activities: Activity[], filters: ActivityFilters) {
-  const query = filters.q?.toLowerCase();
-  return activities.filter(
-    (activity) =>
-      (!filters.topics.length ||
-        activity.tags.some((tag) => filters.topics.includes(tag.slug))) &&
-      (!filters.costType || activity.costType === filters.costType) &&
-      (!query ||
-        [
-          activity.title,
-          activity.summary,
-          activity.description,
-          activity.venue?.name,
-          activity.venue?.suburb,
-          ...activity.tags.map((tag) => tag.name),
-        ].some((value) => value?.toLowerCase().includes(query))),
-  );
 }
 
 function useDebouncedValue(value: string, delay: number): string {

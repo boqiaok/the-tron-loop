@@ -38,6 +38,7 @@ import type {
 
 const MAX_PICKS = 12;
 const NOTE_MAX_LENGTH = 280;
+const KIND_MAX_LENGTH = 60;
 const INTRO_MAX_LENGTH = 500;
 
 const REASON_LABELS: Record<QualityReason, string> = {
@@ -74,7 +75,13 @@ function exclusionLabel(candidate: GuideCandidate): string {
 
 interface Pick {
   activityId: string;
+  kind: string;
   note: string;
+}
+
+/** A new pick starts with the source's own category, for the editor to refine. */
+function defaultKind(activity: Activity | undefined): string {
+  return activity?.tags[0]?.name.slice(0, KIND_MAX_LENGTH) ?? "";
 }
 
 export function PicksDesk({ data }: { data: AdminWeeklyGuide }) {
@@ -83,12 +90,13 @@ export function PicksDesk({ data }: { data: AdminWeeklyGuide }) {
   const savedPicks: Pick[] =
     guide?.items.map((item) => ({
       activityId: item.activity.id,
+      kind: item.kind ?? "",
       note: item.note ?? "",
     })) ?? [];
   const savedIntro = guide?.intro ?? "";
   // A week nobody has started opens with the suggestions, ready to review.
   const [picks, setPicks] = useState<Pick[]>(() =>
-    guide ? savedPicks : suggestedPicks(candidates),
+    guide ? savedPicks : suggestedPicks(candidates, new Map()),
   );
   const [intro, setIntro] = useState(savedIntro);
   const [busy, setBusy] = useState<string | null>(null);
@@ -108,8 +116,12 @@ export function PicksDesk({ data }: { data: AdminWeeklyGuide }) {
   const picked = new Set(picks.map((pick) => pick.activityId));
   const dirty =
     intro.trim() !== savedIntro ||
-    JSON.stringify(picks.map((pick) => [pick.activityId, pick.note.trim()])) !==
-      JSON.stringify(savedPicks.map((pick) => [pick.activityId, pick.note]));
+    JSON.stringify(
+      picks.map((pick) => [pick.activityId, pick.kind.trim(), pick.note.trim()]),
+    ) !==
+      JSON.stringify(
+        savedPicks.map((pick) => [pick.activityId, pick.kind, pick.note]),
+      );
   const published = guide?.status === "published";
   const draftPicks = picks.filter(
     (pick) => activities.get(pick.activityId)?.status !== "published",
@@ -119,7 +131,12 @@ export function PicksDesk({ data }: { data: AdminWeeklyGuide }) {
 
   function add(activityId: string) {
     setPicks((current) =>
-      current.length >= MAX_PICKS ? current : [...current, { activityId, note: "" }],
+      current.length >= MAX_PICKS
+        ? current
+        : [
+            ...current,
+            { activityId, kind: defaultKind(activities.get(activityId)), note: "" },
+          ],
     );
   }
 
@@ -138,21 +155,21 @@ export function PicksDesk({ data }: { data: AdminWeeklyGuide }) {
     });
   }
 
-  function setNote(activityId: string, note: string) {
+  function edit(activityId: string, patch: Partial<Pick>) {
     setPicks((current) =>
       current.map((pick) =>
-        pick.activityId === activityId ? { ...pick, note } : pick,
+        pick.activityId === activityId ? { ...pick, ...patch } : pick,
       ),
     );
   }
 
   function applySuggestions() {
-    const notes = new Map(picks.map((pick) => [pick.activityId, pick.note]));
+    // Keep what the editor already wrote for picks that stay.
     setPicks(
-      suggestedPicks(candidates).map((pick) => ({
-        ...pick,
-        note: notes.get(pick.activityId) ?? "",
-      })),
+      suggestedPicks(
+        candidates,
+        new Map(picks.map((pick) => [pick.activityId, pick])),
+      ),
     );
   }
 
@@ -179,6 +196,7 @@ export function PicksDesk({ data }: { data: AdminWeeklyGuide }) {
     intro: intro.trim() || null,
     items: picks.map((pick) => ({
       activityId: pick.activityId,
+      kind: pick.kind.trim() || null,
       note: pick.note.trim() || null,
     })),
   });
@@ -342,11 +360,24 @@ export function PicksDesk({ data }: { data: AdminWeeklyGuide }) {
                     </div>
                   </div>
                   <input
+                    id={`kind-${pick.activityId}`}
+                    aria-label={`What ${activity?.title ?? "this activity"} is`}
+                    value={pick.kind}
+                    maxLength={KIND_MAX_LENGTH}
+                    onChange={(event) =>
+                      edit(pick.activityId, { kind: event.target.value })
+                    }
+                    placeholder="What it is, e.g. Indie rock concert"
+                    className="h-9 rounded-md border bg-white px-2.5 text-sm shadow-xs outline-none focus:border-ring focus:ring-3 focus:ring-ring/20"
+                  />
+                  <input
                     id={`note-${pick.activityId}`}
                     aria-label={`Why go to ${activity?.title ?? "this activity"}`}
                     value={pick.note}
                     maxLength={NOTE_MAX_LENGTH}
-                    onChange={(event) => setNote(pick.activityId, event.target.value)}
+                    onChange={(event) =>
+                      edit(pick.activityId, { note: event.target.value })
+                    }
                     placeholder="Why it’s worth going"
                     className="h-9 rounded-md border bg-white px-2.5 text-sm shadow-xs outline-none focus:border-ring focus:ring-3 focus:ring-ring/20"
                   />
@@ -432,10 +463,20 @@ export function PicksDesk({ data }: { data: AdminWeeklyGuide }) {
   );
 }
 
-function suggestedPicks(candidates: GuideCandidate[]): Pick[] {
+function suggestedPicks(
+  candidates: GuideCandidate[],
+  existing: Map<string, Pick>,
+): Pick[] {
   return candidates
     .filter((candidate) => candidate.suggested)
-    .map((candidate) => ({ activityId: candidate.activity.id, note: "" }));
+    .map(
+      (candidate) =>
+        existing.get(candidate.activity.id) ?? {
+          activityId: candidate.activity.id,
+          kind: defaultKind(candidate.activity),
+          note: "",
+        },
+    );
 }
 
 function GuideStatus({

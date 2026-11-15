@@ -12,9 +12,12 @@ import {
 export function OccurrenceList({
   groups,
   recurring = false,
+  pickIds,
 }: {
   groups: OccurrenceGroup[];
   recurring?: boolean;
+  /** Activities the editor picked for the week, marked in their rows. */
+  pickIds?: ReadonlySet<string>;
 }) {
   return (
     <div className="flex flex-col gap-2 md:gap-1.5">
@@ -55,6 +58,7 @@ export function OccurrenceList({
                 key={`${occurrence.date.id}-${group.key}`}
                 occurrence={occurrence}
                 recurring={recurring}
+                picked={pickIds?.has(occurrence.activity.id)}
               />
             ))
           )}

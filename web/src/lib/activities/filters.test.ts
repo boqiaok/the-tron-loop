@@ -29,6 +29,21 @@ describe("URL filters", () => {
     );
     expect(parseScope({ scope: "nope" })).toBe("this-week");
   });
+
+  it("opens on the highlights and keeps other tiers in the URL", () => {
+    expect(parseFilters({}).tier).toBe("highlights");
+    expect(parseFilters({ tier: "bogus" }).tier).toBe("highlights");
+    expect(parseFilters({ tier: "regular" }).tier).toBe("regular");
+    expect(parseFilters({ tier: "all" }).tier).toBeUndefined();
+
+    expect(toSearchParams("this-week", undefined, parseFilters({})).toString()).toBe("");
+    expect(
+      toSearchParams("this-week", undefined, parseFilters({ tier: "exhibitions" })).toString(),
+    ).toBe("tier=exhibitions");
+    expect(
+      toSearchParams("this-week", undefined, parseFilters({ tier: "all" })).toString(),
+    ).toBe("tier=all");
+  });
 });
 
 describe("narrowRange", () => {
